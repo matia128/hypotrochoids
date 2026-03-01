@@ -27,7 +27,11 @@
     #ui label {
       font-size: 13px;
       display: block;
-      margin-bottom: 4px;
+      margin-top: 15px;
+      margin-bottom: 10px;
+    }
+    #ui label:first-child {
+      margin-top: 0;
     }
     .info-icon {
       display: inline-flex;
@@ -42,7 +46,7 @@
       color: #888;
       background: rgba(255, 255, 255, 0.1);
       border-radius: 50%;
-      cursor: help;
+      cursor: default;
       vertical-align: middle;
     }
     .info-icon:hover {
@@ -50,7 +54,8 @@
       background: rgba(255, 255, 255, 0.15);
     }
     #freqs {
-      width: 220px;
+      width: 100%;
+      box-sizing: border-box;
       padding: 4px 6px;
       border-radius: 4px;
       border: 1px solid #555;
@@ -59,21 +64,41 @@
       font-size: 13px;
       margin-bottom: 8px;
     }
-    .step-grid,
-    #colorStep {
+    .step-grid {
       margin-bottom: 8px;
     }
+    #colorStep {
+      display: block;
+      width: 100%;
+      margin: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: #444;
+      border-radius: 2px;
+    }
+    #colorStep::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #eee;
+      border: 1px solid #666;
+      cursor: pointer;
+    }
     .rho-row {
-      margin-bottom: 6px;
+      margin-bottom: 12px;
+      width: 100%;
     }
     .rho-line {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 4px;
-      margin-bottom: 2px;
+      width: 100%;
     }
     .rho-slider {
-      width: 180px;
+      width: 100%;
       -webkit-appearance: none;
       appearance: none;
       height: 4px;
@@ -115,9 +140,11 @@
       cursor: pointer;
     }
     .rho-ticks {
+      position: relative;
       display: flex;
       justify-content: space-between;
-      width: 180px;
+      width: 100%;
+      box-sizing: border-box;
       font-size: 10px;
       color: #aaa;
     }
@@ -126,14 +153,84 @@
       background: #111;
       color: #eee;
       font-size: 10px;
-      padding: 1px 4px;
+      padding: 2px 4px;
       border-radius: 3px;
       cursor: pointer;
       min-width: 28px;
+      line-height: 1;
+      margin-left: 4px;
     }
     .rho-play.active {
       border-color: #3b82f6;
       background: #1e3a8a;
+    }
+    .palette-btn {
+      flex: 1;
+      padding: 4px 0;
+      background: #222;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .palette-btn.active {
+      border-color: #3b82f6;
+      background: #1e3a8a;
+      color: #fff;
+    }
+    #hueSlider {
+      display: block;
+      width: 100%;
+      margin-top: 5px;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(to right,
+        hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%),
+        hsl(90,100%,50%), hsl(120,100%,50%), hsl(150,100%,50%),
+        hsl(180,100%,50%), hsl(210,100%,50%), hsl(240,100%,50%),
+        hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%),
+        hsl(359,100%,50%));
+      cursor: pointer;
+    }
+    #hueSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #000;
+      cursor: pointer;
+    }
+    #playAllBtn, #resetRhosBtn, #randomRhosBtn {
+      width: 94px;
+      padding: 4px 0;
+      background: #222;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    #playAllBtn.active {
+      border-color: #3b82f6;
+      background: #1e3a8a;
+    }
+    #sliderTooltip {
+      position: fixed;
+      transform: translateX(-50%);
+      background: #333;
+      color: #eee;
+      font-size: 12px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+      z-index: 1000;
     }
     .rho-speed {
       display: flex;
@@ -183,6 +280,7 @@
       background: #1e3a8a;
     }
     #drawBtn {
+      width: 100%;
       margin-top: 6px;
       padding: 4px 10px;
       border-radius: 4px;
@@ -195,24 +293,51 @@
     #drawBtn:hover {
       background: #2563eb;
     }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
     #hint {
       margin-top: 4px;
       font-size: 11px;
       color: #aaa;
     }
+    #fullscreenBtn {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 100;
+      background: rgba(30,30,30,0.8);
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 6px;
+      font-size: 20px;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #fullscreenBtn:hover {
+      background: rgba(60,60,60,0.9);
+      color: #fff;
+    }
   </style>
 </head>
 <body>
     <div id="ui">
-      <label for="freqs">Frequency ratios <span class="info-icon" title="Controls the ratios between the angular velocities of the vectors. Separate values with comma or space.">i</span></label>
+      <label for="freqs">Frequency ratios <span class="info-icon" id="freqInfoIcon">i</span></label>
       <input id="freqs" type="text" value="0.5, 0.3, 1/3" />
-      <label>Length ratios</label>
-      <label for="randomRhos">
-        <input id="randomRhos" type="checkbox" checked />
-        Random
-      </label>
-      <div id="rhoSliders" style="display: none;"></div>
-      <label>Angle step</label>
+      <label>Length ratios <span class="info-icon" id="rhoInfoIcon">i</span></label>
+      <div id="rhoSliders"></div>
+      <label>Angle step <span class="info-icon" id="angleInfoIcon">i</span></label>
       <div id="angleSteps" class="step-grid">
         <button type="button" class="step-btn" data-step="1">1</button>
         <button type="button" class="step-btn" data-step="2">2</button>
@@ -239,14 +364,34 @@
         <button type="button" class="step-btn" data-step="180">180</button>
         <button type="button" class="step-btn" data-step="360">360</button>
       </div>
-      <label for="colorStep">Color step</label>
-      <input id="colorStep" type="number" min="1" max="1000" step="1" value="50" />
+      <label>Color palette</label>
+      <div style="display:flex;gap:4px;margin-bottom:8px;">
+        <button type="button" class="palette-btn active" data-mode="bounce">Random</button>
+        <button type="button" class="palette-btn" data-mode="rainbow">Rainbow</button>
+        <button type="button" class="palette-btn" data-mode="mono">Mono</button>
+      </div>
+      <div id="colorStepRow">
+        <div style="display:flex;align-items:center;gap:6px;margin-top:15px;margin-bottom:10px;">
+          <label for="colorStepVal" style="margin:0;">Color step:</label>
+          <input id="colorStepVal" type="number" min="1" max="200" step="1" value="50" style="width:3ch;padding:2px 4px;background:#111;color:#eee;border:1px solid #555;border-radius:3px;font-size:12px;outline:none;" />
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="font-size:11px;color:#aaa;flex-shrink:0;">1</span>
+          <input id="colorStep" type="range" min="1" max="200" step="1" value="50" style="flex:1;margin:0;" />
+          <span style="font-size:11px;color:#aaa;flex-shrink:0;">200</span>
+        </div>
+      </div>
+      <div id="hueRow" style="display:none;margin-bottom:8px;">
+        <label for="hueSlider">Hue</label>
+        <input id="hueSlider" type="range" min="0" max="359" step="1" value="0" />
+      </div>
       <button id="drawBtn">Draw</button>
       <div id="hint">
         Scroll to zoom, drag to pan, press Tab to reset.
       </div>
     </div>
 
+  <button id="fullscreenBtn" title="Toggle fullscreen"></button>
   <script src="sketch.js"></script>
 </body>
 </html>

@@ -19,6 +19,68 @@ let colorState = {
   initialized: false,
 };
 
+let colorMode = 'bounce'; // 'bounce' | 'rainbow' | 'mono'
+let monoHue = 0;
+
+// Rainbow: 6 phases of 255 steps each, only one component changes by 1 per step
+function rainbowColor(pos) {
+  pos = ((pos % 1530) + 1530) % 1530;
+  const phase = Math.floor(pos / 255);
+  const t = pos % 255;
+  switch (phase) {
+    case 0: return [255, t, 0];
+    case 1: return [255 - t, 255, 0];
+    case 2: return [0, 255, t];
+    case 3: return [0, 255 - t, 255];
+    case 4: return [t, 0, 255];
+    default: return [255, 0, 255 - t];
+  }
+}
+
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60)       { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else              { r = c; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+let sliderTooltip = null;
+
+function showSliderTooltip(slider) {
+  if (!sliderTooltip) {
+    sliderTooltip = document.createElement("div");
+    sliderTooltip.id = "sliderTooltip";
+    document.body.appendChild(sliderTooltip);
+  }
+  const val = parseFloat(slider.value);
+  sliderTooltip.textContent = isFinite(val) ? val.toFixed(3) : "0";
+  const rect = slider.getBoundingClientRect();
+  const min = parseFloat(slider.min);
+  const max = parseFloat(slider.max);
+  const ratio = (val - min) / (max - min);
+  const thumbX = rect.left + ratio * (rect.width - 10) + 5;
+  sliderTooltip.style.left = thumbX + "px";
+  sliderTooltip.style.top = (rect.top - 22) + "px";
+  sliderTooltip.style.display = "block";
+}
+
+function hideSliderTooltip() {
+  if (sliderTooltip) sliderTooltip.style.display = "none";
+}
+
+function attachSliderTooltip(slider) {
+  slider.addEventListener("mouseenter", () => showSliderTooltip(slider));
+  slider.addEventListener("mousemove", () => showSliderTooltip(slider));
+  slider.addEventListener("mouseleave", hideSliderTooltip);
+}
+
 function snapRhoValue(v) {
   const targets = [-1, 0, 1];
   const eps = 0.08;
@@ -28,6 +90,78 @@ function snapRhoValue(v) {
   }
   return v;
 }
+
+function addPlayAllButton(container) {
+  const existingRow = document.getElementById("playAllRow");
+  if (existingRow) existingRow.remove();
+  if (rhoAnimStates.length <= 1) return;
+
+  const row = document.createElement("div");
+  row.id = "playAllRow";
+  row.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-top:2px;margin-bottom:4px;gap:4px;";
+
+  const resetBtn = document.createElement("button");
+  resetBtn.id = "resetRhosBtn";
+  resetBtn.textContent = "Reset";
+  resetBtn.addEventListener("click", () => {
+    stopAllRhoAnimations();
+    for (const state of rhoAnimStates) {
+      if (!state) continue;
+      state.slider.value = "0";
+      state.animValue = null;
+      state.dir = 1;
+    }
+    computeFromUI(false, false, false);
+  });
+
+  const randomBtn = document.createElement("button");
+  randomBtn.id = "randomRhosBtn";
+  randomBtn.textContent = "Random";
+  randomBtn.addEventListener("click", () => {
+    stopAllRhoAnimations();
+    for (const state of rhoAnimStates) {
+      if (!state) continue;
+      const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+      state.slider.value = String(v);
+      state.animValue = null;
+      state.dir = 1;
+    }
+    computeFromUI(false, false, false);
+  });
+
+  const playBtn = document.createElement("button");
+  playBtn.id = "playAllBtn";
+  playBtn.textContent = "▶ Play All";
+  playBtn.addEventListener("click", () => {
+    const anyActive = rhoAnimStates.some(s => s && s.active);
+    if (anyActive) {
+      stopAllRhoAnimations();
+    } else {
+      for (const state of rhoAnimStates) {
+        if (state) {
+          state.active = true;
+          if (state.button) state.button.classList.add("active");
+        }
+      }
+      startRhoAnimationLoop();
+    }
+    updatePlayAllBtn(playBtn);
+  });
+
+  row.appendChild(resetBtn);
+  row.appendChild(randomBtn);
+  row.appendChild(playBtn);
+  container.appendChild(row);
+}
+
+function updatePlayAllBtn(btn) {
+  if (!btn) btn = document.getElementById("playAllBtn");
+  if (!btn) return;
+  const anyActive = rhoAnimStates.some(s => s && s.active);
+  btn.classList.toggle("active", anyActive);
+  btn.textContent = anyActive ? "⏹ Stop All" : "▶ Play All";
+}
+
 
 function startRhoAnimationLoop() {
   if (rhoAnimFrameId !== null) return;
@@ -47,7 +181,9 @@ function stopAllRhoAnimations() {
     cancelAnimationFrame(rhoAnimFrameId);
     rhoAnimFrameId = null;
   }
-  loop(); // resume p5 draw() when user stops all play buttons
+  rhoAnimLastTime = null;
+  updatePlayAllBtn();
+  loop();
 }
 
 const RHO_ANIM_SPEED_PER_SECOND = 0.6; // slider units per second at 1x (frame-rate independent)
@@ -142,6 +278,119 @@ function setup() {
   noFill();
   computeFromUI(true, true, true);
 
+  const freqInfoIcon = document.getElementById("freqInfoIcon");
+  if (freqInfoIcon) {
+    const infoText = "The ratios between the angular velocities of the vectors.\nComma or space separated.";
+    freqInfoIcon.addEventListener("mouseenter", () => {
+      if (!sliderTooltip) {
+        sliderTooltip = document.createElement("div");
+        sliderTooltip.id = "sliderTooltip";
+        document.body.appendChild(sliderTooltip);
+      }
+      sliderTooltip.textContent = infoText;
+      sliderTooltip.style.maxWidth = "180px";
+      sliderTooltip.style.whiteSpace = "pre-line";
+      const rect = freqInfoIcon.getBoundingClientRect();
+      sliderTooltip.style.left = (rect.left + rect.width / 2) + "px";
+      sliderTooltip.style.top = (rect.bottom + 6) + "px";
+      sliderTooltip.style.display = "block";
+    });
+    freqInfoIcon.addEventListener("mouseleave", () => {
+      hideSliderTooltip();
+      if (sliderTooltip) {
+        sliderTooltip.style.maxWidth = "";
+        sliderTooltip.style.whiteSpace = "nowrap";
+      }
+    });
+  }
+
+  const rhoInfoIcon = document.getElementById("rhoInfoIcon");
+  if (rhoInfoIcon) {
+    const rhoInfoText = "The ratios between the magnitudes of the vectors. \nEach slider corresponds to the respective frequency ratio.";
+    rhoInfoIcon.addEventListener("mouseenter", () => {
+      if (!sliderTooltip) {
+        sliderTooltip = document.createElement("div");
+        sliderTooltip.id = "sliderTooltip";
+        document.body.appendChild(sliderTooltip);
+      }
+      sliderTooltip.textContent = rhoInfoText;
+      sliderTooltip.style.maxWidth = "180px";
+      sliderTooltip.style.whiteSpace = "pre-line";
+      const rect = rhoInfoIcon.getBoundingClientRect();
+      sliderTooltip.style.left = (rect.left + rect.width / 2) + "px";
+      sliderTooltip.style.top = (rect.bottom + 6) + "px";
+      sliderTooltip.style.display = "block";
+    });
+    rhoInfoIcon.addEventListener("mouseleave", () => {
+      hideSliderTooltip();
+      if (sliderTooltip) {
+        sliderTooltip.style.maxWidth = "";
+        sliderTooltip.style.whiteSpace = "nowrap";
+      }
+    });
+  }
+
+  const angleInfoIcon = document.getElementById("angleInfoIcon");
+  if (angleInfoIcon) {
+    const angleInfoText = "The smoothness of the curve, how often a new point is calculated.";
+    angleInfoIcon.addEventListener("mouseenter", () => {
+      if (!sliderTooltip) {
+        sliderTooltip = document.createElement("div");
+        sliderTooltip.id = "sliderTooltip";
+        document.body.appendChild(sliderTooltip);
+      }
+      sliderTooltip.textContent = angleInfoText;
+      sliderTooltip.style.maxWidth = "180px";
+      sliderTooltip.style.whiteSpace = "pre-line";
+      const rect = angleInfoIcon.getBoundingClientRect();
+      sliderTooltip.style.left = (rect.left + rect.width / 2) + "px";
+      sliderTooltip.style.top = (rect.bottom + 6) + "px";
+      sliderTooltip.style.display = "block";
+    });
+    angleInfoIcon.addEventListener("mouseleave", () => {
+      hideSliderTooltip();
+      if (sliderTooltip) {
+        sliderTooltip.style.maxWidth = "";
+        sliderTooltip.style.whiteSpace = "nowrap";
+      }
+    });
+  }
+
+  const paletteBtns = document.querySelectorAll(".palette-btn");
+  const colorStepRow = document.getElementById("colorStepRow");
+  const hueRow = document.getElementById("hueRow");
+  paletteBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      colorMode = btn.dataset.mode;
+      paletteBtns.forEach(b => b.classList.toggle("active", b === btn));
+      colorStepRow.style.display = colorMode === 'mono' ? "none" : "";
+      hueRow.style.display = colorMode === 'mono' ? "" : "none";
+      computeFromUI(false, false, true, true);
+    });
+  });
+
+  const hueSlider = document.getElementById("hueSlider");
+  if (hueSlider) {
+    hueSlider.addEventListener("input", () => {
+      monoHue = parseInt(hueSlider.value, 10);
+      computeFromUI(false, false, true, true);
+    });
+  }
+
+  const colorStepSlider = document.getElementById("colorStep");
+  const colorStepVal = document.getElementById("colorStepVal");
+  if (colorStepSlider && colorStepVal) {
+    colorStepSlider.addEventListener("input", () => {
+      colorStepVal.value = colorStepSlider.value;
+      computeFromUI(false, false, true, true);
+    });
+    colorStepVal.addEventListener("input", () => {
+      const v = Math.min(200, Math.max(1, parseInt(colorStepVal.value, 10) || 1));
+      colorStepSlider.value = v;
+      computeFromUI(false, false, true, true);
+    });
+  }
+
   const drawBtn = document.getElementById("drawBtn");
   drawBtn.addEventListener("click", () => computeFromUI(true, true, true));
 
@@ -158,95 +407,6 @@ function setup() {
     });
   });
 
-  const randomToggle = document.getElementById("randomRhos");
-  if (randomToggle) {
-    randomToggle.addEventListener("change", () => {
-      const container = document.getElementById("rhoSliders");
-      if (randomToggle.checked) {
-        // back to random: stop any playing animations, then hide sliders
-        stopAllRhoAnimations();
-        if (container) {
-          container.style.display = "none";
-          container.innerHTML = "";
-          lastSliderCount = 0;
-        }
-        computeFromUI(false, false, true);
-      } else {
-        // turn off random: keep current shape and seed sliders from currentRhos
-        if (container) {
-          container.style.display = "block";
-
-          const input = document.getElementById("freqs");
-          const parts = input.value.split(/[, ]+/).filter(Boolean);
-          const parsed = parts.map(parseFrequency).filter(f => f !== null);
-
-          container.innerHTML = "";
-          lastSliderCount = parsed.length;
-          rhoAnimStates = new Array(parsed.length).fill(null);
-
-          for (let i = 0; i < parsed.length; i++) {
-            const row = document.createElement("div");
-            row.className = "rho-row";
-
-            const line = document.createElement("div");
-            line.className = "rho-line";
-
-            const slider = document.createElement("input");
-            slider.type = "range";
-            slider.className = "rho-slider";
-            slider.min = "-2";
-            slider.max = "2";
-            slider.step = "0.001";
-            const initialRho =
-              Array.isArray(currentRhos) && currentRhos.length === parsed.length
-                ? currentRhos[i] || 0
-                : 0;
-            slider.value = String(initialRho);
-            const state = { slider, dir: 1, active: false, button: null, speedMultiplier: 1 };
-            rhoAnimStates[i] = state;
-            slider.addEventListener("input", () => {
-              const raw = parseFloat(slider.value);
-              const snapped = snapRhoValue(isFinite(raw) ? raw : 0);
-              slider.value = String(snapped);
-              if (state.animValue != null) state.animValue = snapped;
-              computeFromUI(false, false, true);
-            });
-
-            const play = document.createElement("button");
-            play.type = "button";
-            play.className = "rho-play";
-            play.textContent = "▶";
-            state.button = play;
-
-            play.addEventListener("click", () => {
-              state.active = !state.active;
-              play.classList.toggle("active", state.active);
-              if (state.active) {
-                startRhoAnimationLoop();
-              }
-            });
-
-            line.appendChild(slider);
-            line.appendChild(play);
-            line.appendChild(createRhoSpeedControl(state));
-
-            const ticks = document.createElement("div");
-            ticks.className = "rho-ticks";
-            const labels = ["-2", "-1", "0", "1", "2"];
-            for (const txt of labels) {
-              const span = document.createElement("span");
-              span.textContent = txt;
-              ticks.appendChild(span);
-            }
-
-            row.appendChild(line);
-            row.appendChild(ticks);
-            container.appendChild(row);
-          }
-        }
-      }
-    });
-  }
 }
 
 function windowResized() {
@@ -295,7 +455,7 @@ function lcm(a, b) {
   return Math.abs(a * b) / gcd(a, b);
 }
 
-function computeFromUI(resetColors = false, resetView = false, snapRhosValues = true) {
+function computeFromUI(resetColors = false, resetView = false, snapRhosValues = true, preserveRhos = false) {
   const input = document.getElementById("freqs");
   const parts = input.value.split(/[, ]+/).filter(Boolean);
   const parsed = parts.map(parseFrequency).filter(f => f !== null);
@@ -305,9 +465,6 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
   if (!Number.isFinite(colorStep) || colorStep <= 0) {
     colorStep = 50;
   }
-
-  const randomToggle = document.getElementById("randomRhos");
-  const useRandomRhos = !randomToggle || randomToggle.checked;
 
   // color state: only (re)randomize when requested
   if (resetColors || !colorState.initialized) {
@@ -329,7 +486,7 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
   // radii for each vector (random or controlled by sliders)
   const rhos = [];
   const slidersContainer = document.getElementById("rhoSliders");
-  if (!useRandomRhos && parsed.length > 0) {
+  if (parsed.length > 0) {
     if (slidersContainer) {
       // build sliders once per frequency-count
       const existing = slidersContainer.querySelectorAll("input.rho-slider");
@@ -356,11 +513,13 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
           slider.value = String(initialRho);
           const state = { slider, dir: 1, active: false, button: null, speedMultiplier: 1 };
           rhoAnimStates[i] = state;
+          attachSliderTooltip(slider);
           slider.addEventListener("input", () => {
             const raw = parseFloat(slider.value);
             const snapped = snapRhoValue(isFinite(raw) ? raw : 0);
             slider.value = String(snapped);
             if (state.animValue != null) state.animValue = snapped;
+            showSliderTooltip(slider);
             computeFromUI(false, false, true);
           });
 
@@ -373,25 +532,35 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
             state.active = !state.active;
             play.classList.toggle("active", state.active);
             if (state.active) startRhoAnimationLoop();
+            updatePlayAllBtn();
           });
 
-          line.appendChild(slider);
-          line.appendChild(play);
-          line.appendChild(createRhoSpeedControl(state));
+          const sliderCol = document.createElement("div");
+          sliderCol.style.cssText = "flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding-top:5px;";
+          sliderCol.appendChild(slider);
 
           const ticks = document.createElement("div");
           ticks.className = "rho-ticks";
           const labels = ["-2", "-1", "0", "1", "2"];
-          for (const txt of labels) {
+          const offsets = [1, 2, 2, 2, 2];
+          const positions = [0, 25, 50, 75, 100];
+          for (let li = 0; li < labels.length; li++) {
             const span = document.createElement("span");
-            span.textContent = txt;
+            span.textContent = labels[li];
+            span.style.cssText = `position:absolute;left:calc(${positions[li]}% + ${5 - positions[li] * 0.1 + offsets[li]}px);transform:translateX(-50%);`;
             ticks.appendChild(span);
           }
+          ticks.style.height = "14px";
+          sliderCol.appendChild(ticks);
+
+          line.appendChild(sliderCol);
+          line.appendChild(play);
+          line.appendChild(createRhoSpeedControl(state));
 
           row.appendChild(line);
-          row.appendChild(ticks);
           slidersContainer.appendChild(row);
         }
+        addPlayAllButton(slidersContainer);
         lastSliderCount = parsed.length;
       }
 
@@ -403,15 +572,9 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
         rhos.push(snapRhosValues ? snapRhoValue(baseVal) : baseVal);
       }
     }
-  } else {
-    stopAllRhoAnimations();
-    if (slidersContainer) {
-      slidersContainer.style.display = "none";
-      slidersContainer.innerHTML = "";
-      lastSliderCount = 0;
-    }
+  } else if (preserveRhos && currentRhos.length === parsed.length) {
     for (let i = 0; i < parsed.length; i++) {
-      rhos.push(random(-2, 2));
+      rhos.push(currentRhos[i]);
     }
   }
 
@@ -464,18 +627,26 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
 
   segmentsData = [];
   const segmentSize = colorStep;
-  for (let i = 0; i < x.length; i += segmentSize) {
+  const numSegments = Math.ceil(x.length / segmentSize);
+  for (let si = 0; si < numSegments; si++) {
+    const i = si * segmentSize;
     const endIdx = Math.min(i + segmentSize + 1, x.length);
     const segX = x.slice(i, endIdx);
     const segY = y.slice(i, endIdx);
-    segmentsData.push({ xs: segX, ys: segY, color: [r, g, b] });
 
-    if (r <= 0 || r >= 255) rj *= -1;
-    if (g <= 0 || g >= 255) gj *= -1;
-    if (b <= 0 || b >= 255) bj *= -1;
-    r += rj;
-    g += gj;
-    b += bj;
+    let segColor;
+    if (colorMode === 'rainbow') {
+      segColor = rainbowColor(si);
+    } else if (colorMode === 'mono') {
+      segColor = hslToRgb(monoHue, 1, 0.5);
+    } else {
+      segColor = [r, g, b];
+      if (r <= 0 || r >= 255) rj *= -1;
+      if (g <= 0 || g >= 255) gj *= -1;
+      if (b <= 0 || b >= 255) bj *= -1;
+      r += rj; g += gj; b += bj;
+    }
+    segmentsData.push({ xs: segX, ys: segY, color: segColor });
   }
 
   // reset view only when explicitly requested (e.g. Draw)
@@ -542,6 +713,27 @@ function mouseDragged() {
   offsetX += movedX;
   offsetY += movedY;
 }
+
+// Enter fullscreen: elbows at outer corners, arms point inward (expand to fill screen)
+const ICON_ENTER = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 1,1 5,1"/><polyline points="9,1 13,1 13,5"/><polyline points="1,9 1,13 5,13"/><polyline points="9,13 13,13 13,9"/></svg>`;
+// Exit fullscreen: elbows near center, arms point outward (compress)
+const ICON_EXIT  = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,1 5,5 1,5"/><polyline points="9,1 9,5 13,5"/><polyline points="1,9 5,9 5,13"/><polyline points="13,9 9,9 9,13"/></svg>`;
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+const _fsBtn = document.getElementById("fullscreenBtn");
+_fsBtn.innerHTML = ICON_ENTER;
+_fsBtn.addEventListener("click", toggleFullscreen);
+
+document.addEventListener("fullscreenchange", () => {
+  document.getElementById("fullscreenBtn").innerHTML = document.fullscreenElement ? ICON_EXIT : ICON_ENTER;
+});
 
 function keyPressed() {
   if (keyCode === TAB) {
