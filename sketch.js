@@ -8,6 +8,7 @@ let currentRhos = [];
 let currentStep = 4;
 let rhoAnimStates = [];
 let rhoAnimFrameId = null;
+let rhoAnimLastTime = null;
 let colorState = {
   r: 0,
   g: 0,
@@ -30,35 +31,107 @@ function snapRhoValue(v) {
 
 function startRhoAnimationLoop() {
   if (rhoAnimFrameId !== null) return;
+  noLoop();
   rhoAnimFrameId = requestAnimationFrame(rhoAnimationStep);
 }
 
-function rhoAnimationStep() {
+function stopAllRhoAnimations() {
+  for (const state of rhoAnimStates) {
+    if (state) {
+      state.active = false;
+      state.animValue = null;
+      if (state.button) state.button.classList.remove("active");
+    }
+  }
+  if (rhoAnimFrameId !== null) {
+    cancelAnimationFrame(rhoAnimFrameId);
+    rhoAnimFrameId = null;
+  }
+  loop(); // resume p5 draw() when user stops all play buttons
+}
+
+const RHO_ANIM_SPEED_PER_SECOND = 0.6; // slider units per second at 1x (frame-rate independent)
+const RHO_SPEED_VALUES = [0.25, 0.5, 1, 2, 4];
+
+function roundSpeedMult(v) {
+  let best = RHO_SPEED_VALUES[0];
+  for (const x of RHO_SPEED_VALUES) {
+    if (Math.abs(x - v) < Math.abs(best - v)) best = x;
+  }
+  return best;
+}
+
+function createRhoSpeedControl(state) {
+  state.speedMultiplier = roundSpeedMult(state.speedMultiplier ?? 1);
+  const wrap = document.createElement("div");
+  wrap.className = "rho-speed";
+  const row = document.createElement("div");
+  row.className = "rho-speed-row";
+  const btnDown = document.createElement("button");
+  btnDown.type = "button";
+  btnDown.className = "rho-speed-btn";
+  btnDown.textContent = "«";
+  const valueSpan = document.createElement("span");
+  valueSpan.className = "rho-speed-value";
+  const btnUp = document.createElement("button");
+  btnUp.type = "button";
+  btnUp.className = "rho-speed-btn";
+  btnUp.textContent = "»";
+  function updateDisplay() {
+    const v = roundSpeedMult(state.speedMultiplier);
+    valueSpan.textContent = String(Number(v)) + "x";
+  }
+  btnDown.addEventListener("click", () => {
+    const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(state.speedMultiplier));
+    state.speedMultiplier = RHO_SPEED_VALUES[Math.max(0, i - 1)];
+    updateDisplay();
+  });
+  btnUp.addEventListener("click", () => {
+    const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(state.speedMultiplier));
+    state.speedMultiplier = RHO_SPEED_VALUES[Math.min(RHO_SPEED_VALUES.length - 1, i + 1)];
+    updateDisplay();
+  });
+  row.appendChild(btnDown);
+  row.appendChild(valueSpan);
+  row.appendChild(btnUp);
+  wrap.appendChild(row);
+  updateDisplay();
+  return wrap;
+}
+
+function rhoAnimationStep(timestamp) {
+  const dt = rhoAnimLastTime != null ? (timestamp - rhoAnimLastTime) / 1000 : 0;
+  rhoAnimLastTime = timestamp;
+
   let anyActive = false;
-  const speed = 0.02; // slider units per frame
 
   for (const state of rhoAnimStates) {
     if (!state || !state.active || !state.slider) continue;
     anyActive = true;
-    let v = parseFloat(state.slider.value);
-    if (!isFinite(v)) v = 0;
-    v += state.dir * speed;
-    if (v > 2) {
-      v = 2;
+    const mult = roundSpeedMult(state.speedMultiplier ?? 1);
+    if (state.animValue == null) {
+      state.animValue = parseFloat(state.slider.value);
+      if (!isFinite(state.animValue)) state.animValue = 0;
+    }
+    state.animValue += state.dir * RHO_ANIM_SPEED_PER_SECOND * mult * dt;
+    if (state.animValue > 2) {
+      state.animValue = 2;
       state.dir = -1;
-    } else if (v < -2) {
-      v = -2;
+    } else if (state.animValue < -2) {
+      state.animValue = -2;
       state.dir = 1;
     }
-    state.slider.value = String(v);
+    state.slider.value = String(Number(state.animValue.toFixed(4)));
   }
 
   if (anyActive) {
-    // animate without snapping or resetting view/colors
     computeFromUI(false, false, false);
+    redraw();
     rhoAnimFrameId = requestAnimationFrame(rhoAnimationStep);
   } else {
     rhoAnimFrameId = null;
+    rhoAnimLastTime = null;
+    loop(); // resume p5 draw() when no sliders are playing
   }
 }
 
@@ -90,7 +163,8 @@ function setup() {
     randomToggle.addEventListener("change", () => {
       const container = document.getElementById("rhoSliders");
       if (randomToggle.checked) {
-        // back to random: hide sliders and recompute with new random rhos
+        // back to random: stop any playing animations, then hide sliders
+        stopAllRhoAnimations();
         if (container) {
           container.style.display = "none";
           container.innerHTML = "";
@@ -122,16 +196,19 @@ function setup() {
             slider.className = "rho-slider";
             slider.min = "-2";
             slider.max = "2";
-            slider.step = "0.01";
+            slider.step = "0.001";
             const initialRho =
               Array.isArray(currentRhos) && currentRhos.length === parsed.length
                 ? currentRhos[i] || 0
                 : 0;
             slider.value = String(initialRho);
+            const state = { slider, dir: 1, active: false, button: null, speedMultiplier: 1 };
+            rhoAnimStates[i] = state;
             slider.addEventListener("input", () => {
               const raw = parseFloat(slider.value);
               const snapped = snapRhoValue(isFinite(raw) ? raw : 0);
               slider.value = String(snapped);
+              if (state.animValue != null) state.animValue = snapped;
               computeFromUI(false, false, true);
             });
 
@@ -139,9 +216,7 @@ function setup() {
             play.type = "button";
             play.className = "rho-play";
             play.textContent = "▶";
-
-            const state = { slider, dir: 1, active: false, button: play };
-            rhoAnimStates[i] = state;
+            state.button = play;
 
             play.addEventListener("click", () => {
               state.active = !state.active;
@@ -153,6 +228,7 @@ function setup() {
 
             line.appendChild(slider);
             line.appendChild(play);
+            line.appendChild(createRhoSpeedControl(state));
 
             const ticks = document.createElement("div");
             ticks.className = "rho-ticks";
@@ -259,27 +335,49 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
       const existing = slidersContainer.querySelectorAll("input.rho-slider");
       if (existing.length !== parsed.length) {
         slidersContainer.innerHTML = "";
+        rhoAnimStates = new Array(parsed.length).fill(null);
         for (let i = 0; i < parsed.length; i++) {
           const row = document.createElement("div");
           row.className = "rho-row";
+
+          const line = document.createElement("div");
+          line.className = "rho-line";
 
           const slider = document.createElement("input");
           slider.type = "range";
           slider.className = "rho-slider";
           slider.min = "-2";
           slider.max = "2";
-          slider.step = "0.01";
+          slider.step = "0.001";
           const initialRho =
             Array.isArray(currentRhos) && currentRhos.length === parsed.length
               ? currentRhos[i] || 0
               : 0;
           slider.value = String(initialRho);
+          const state = { slider, dir: 1, active: false, button: null, speedMultiplier: 1 };
+          rhoAnimStates[i] = state;
           slider.addEventListener("input", () => {
             const raw = parseFloat(slider.value);
             const snapped = snapRhoValue(isFinite(raw) ? raw : 0);
             slider.value = String(snapped);
+            if (state.animValue != null) state.animValue = snapped;
             computeFromUI(false, false, true);
           });
+
+          const play = document.createElement("button");
+          play.type = "button";
+          play.className = "rho-play";
+          play.textContent = "▶";
+          state.button = play;
+          play.addEventListener("click", () => {
+            state.active = !state.active;
+            play.classList.toggle("active", state.active);
+            if (state.active) startRhoAnimationLoop();
+          });
+
+          line.appendChild(slider);
+          line.appendChild(play);
+          line.appendChild(createRhoSpeedControl(state));
 
           const ticks = document.createElement("div");
           ticks.className = "rho-ticks";
@@ -290,7 +388,7 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
             ticks.appendChild(span);
           }
 
-          row.appendChild(slider);
+          row.appendChild(line);
           row.appendChild(ticks);
           slidersContainer.appendChild(row);
         }
@@ -306,6 +404,7 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
       }
     }
   } else {
+    stopAllRhoAnimations();
     if (slidersContainer) {
       slidersContainer.style.display = "none";
       slidersContainer.innerHTML = "";
@@ -392,7 +491,6 @@ function draw() {
   translate(width / 2 + offsetX, height / 2 + offsetY);
   scale(zoomLevel * baseScale);
 
-  // keep stroke width ~1px on screen regardless of zoom
   const s = zoomLevel * baseScale;
   if (s > 0) {
     strokeWeight(1 / s);
