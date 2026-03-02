@@ -94,7 +94,7 @@ function snapRhoValue(v) {
 function addPlayAllButton(container) {
   const existingRow = document.getElementById("playAllRow");
   if (existingRow) existingRow.remove();
-  if (rhoAnimStates.length <= 1) return;
+  if (rhoAnimStates.length < 1) return;
 
   const row = document.createElement("div");
   row.id = "playAllRow";
@@ -486,6 +486,17 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
   // radii for each vector (random or controlled by sliders)
   const rhos = [];
   const slidersContainer = document.getElementById("rhoSliders");
+  const lengthLabel = document.getElementById("lengthRatiosLabel");
+  if (parsed.length === 0) {
+    if (slidersContainer) { slidersContainer.style.display = "none"; slidersContainer.innerHTML = ""; lastSliderCount = 0; }
+    if (lengthLabel) lengthLabel.style.display = "none";
+    rhoAnimStates = [];
+    const existingRow = document.getElementById("playAllRow");
+    if (existingRow) existingRow.remove();
+  } else {
+    if (slidersContainer) slidersContainer.style.display = "";
+    if (lengthLabel) lengthLabel.style.display = "";
+  }
   if (parsed.length > 0) {
     if (slidersContainer) {
       // build sliders once per frequency-count
@@ -681,7 +692,11 @@ function draw() {
 }
 
 function mouseWheel(event) {
-  // zoom towards mouse position, similar to Python version
+  const ui = document.getElementById("ui");
+  if (ui && ui.style.display !== "none") {
+    const el = document.elementFromPoint(mouseX, mouseY);
+    if (el && ui.contains(el)) return;
+  }
   const mouseRelX = mouseX - width / 2;
   const mouseRelY = mouseY - height / 2;
   const worldX = (mouseRelX - offsetX) / zoomLevel;
@@ -718,6 +733,16 @@ function mouseDragged() {
 const ICON_ENTER = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 1,1 5,1"/><polyline points="9,1 13,1 13,5"/><polyline points="1,9 1,13 5,13"/><polyline points="9,13 13,13 13,9"/></svg>`;
 // Exit fullscreen: elbows near center, arms point outward (compress)
 const ICON_EXIT  = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,1 5,5 1,5"/><polyline points="9,1 9,5 13,5"/><polyline points="1,9 5,9 5,13"/><polyline points="13,9 9,9 9,13"/></svg>`;
+
+document.getElementById("closeUiBtn").addEventListener("click", () => {
+  document.getElementById("ui").style.display = "none";
+  document.getElementById("openUiBtn").style.display = "flex";
+});
+
+document.getElementById("openUiBtn").addEventListener("click", () => {
+  document.getElementById("ui").style.display = "";
+  document.getElementById("openUiBtn").style.display = "none";
+});
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {

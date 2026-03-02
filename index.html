@@ -17,12 +17,26 @@
       position: fixed;
       top: 40px;
       left: 20px;
+      min-width: 320px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
       padding: 10px 12px;
+      padding-right: 28px;
       background: rgba(20, 20, 20, 0.9);
       border-radius: 8px;
       backdrop-filter: blur(6px);
       border: 1px solid rgba(255, 255, 255, 0.15);
       z-index: 10;
+    }
+    #ui::-webkit-scrollbar {
+      width: 4px;
+    }
+    #ui::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #ui::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
     }
     #ui label {
       font-size: 13px;
@@ -30,8 +44,8 @@
       margin-top: 15px;
       margin-bottom: 10px;
     }
-    #ui label:first-child {
-      margin-top: 0;
+    #ui label:first-of-type {
+      margin-top: 5px;
     }
     .info-icon {
       display: inline-flex;
@@ -307,6 +321,47 @@
       font-size: 11px;
       color: #aaa;
     }
+    #closeUiBtn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: #999;
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #closeUiBtn:hover {
+      color: #fff;
+    }
+    #openUiBtn {
+      position: fixed;
+      top: 40px;
+      left: 20px;
+      z-index: 100;
+      background: rgba(30,30,30,0.8);
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #openUiBtn:hover {
+      background: rgba(60,60,60,0.9);
+      color: #fff;
+    }
     #fullscreenBtn {
       position: fixed;
       bottom: 16px;
@@ -332,10 +387,12 @@
   </style>
 </head>
 <body>
+    <button id="openUiBtn" title="Open panel"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="13" y2="12"/></svg></button>
     <div id="ui">
+      <button id="closeUiBtn" title="Close panel">✕</button>
       <label for="freqs">Frequency ratios <span class="info-icon" id="freqInfoIcon">i</span></label>
       <input id="freqs" type="text" value="0.5, 0.3, 1/3" />
-      <label>Length ratios <span class="info-icon" id="rhoInfoIcon">i</span></label>
+      <label id="lengthRatiosLabel">Length ratios <span class="info-icon" id="rhoInfoIcon">i</span></label>
       <div id="rhoSliders"></div>
       <label>Angle step <span class="info-icon" id="angleInfoIcon">i</span></label>
       <div id="angleSteps" class="step-grid">
