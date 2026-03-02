@@ -21,6 +21,10 @@ let colorState = {
 
 let colorMode = 'bounce'; // 'bounce' | 'rainbow' | 'mono'
 let monoHue = 0;
+const PEN_WIDTH_VALUES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4];
+let penWidth = 1;
+const OPACITY_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+let lineOpacity = 1;
 
 // Rainbow: 6 phases of 255 steps each, only one component changes by 1 per step
 function rainbowColor(pos) {
@@ -391,6 +395,42 @@ function setup() {
     });
   }
 
+  const penWidthValSpan = document.getElementById("penWidthValue");
+  const penWidthDown = document.getElementById("penWidthDown");
+  const penWidthUp = document.getElementById("penWidthUp");
+  function updatePenWidthDisplay() {
+    penWidthValSpan.textContent = String(penWidth);
+    redraw();
+  }
+  penWidthDown.addEventListener("click", () => {
+    const i = PEN_WIDTH_VALUES.indexOf(penWidth);
+    penWidth = PEN_WIDTH_VALUES[Math.max(0, i - 1)];
+    updatePenWidthDisplay();
+  });
+  penWidthUp.addEventListener("click", () => {
+    const i = PEN_WIDTH_VALUES.indexOf(penWidth);
+    penWidth = PEN_WIDTH_VALUES[Math.min(PEN_WIDTH_VALUES.length - 1, i + 1)];
+    updatePenWidthDisplay();
+  });
+
+  const opacityValSpan = document.getElementById("opacityValue");
+  const opacityDown = document.getElementById("opacityDown");
+  const opacityUp = document.getElementById("opacityUp");
+  function updateOpacityDisplay() {
+    opacityValSpan.textContent = String(Math.round(lineOpacity * 10) / 10);
+    redraw();
+  }
+  opacityDown.addEventListener("click", () => {
+    const i = OPACITY_VALUES.indexOf(Math.round(lineOpacity * 10) / 10);
+    lineOpacity = OPACITY_VALUES[Math.max(0, i - 1)];
+    updateOpacityDisplay();
+  });
+  opacityUp.addEventListener("click", () => {
+    const i = OPACITY_VALUES.indexOf(Math.round(lineOpacity * 10) / 10);
+    lineOpacity = OPACITY_VALUES[Math.min(OPACITY_VALUES.length - 1, i + 1)];
+    updateOpacityDisplay();
+  });
+
   const drawBtn = document.getElementById("drawBtn");
   drawBtn.addEventListener("click", () => computeFromUI(true, true, true));
 
@@ -675,14 +715,14 @@ function draw() {
 
   const s = zoomLevel * baseScale;
   if (s > 0) {
-    strokeWeight(1 / s);
+    strokeWeight(penWidth / s);
   } else {
-    strokeWeight(1);
+    strokeWeight(penWidth);
   }
 
   for (const seg of segmentsData) {
     const [r, g, b] = seg.color;
-    stroke(r, g, b);
+    stroke(r, g, b, Math.round(lineOpacity * 255));
     beginShape();
     for (let i = 0; i < seg.xs.length; i++) {
       vertex(seg.xs[i], seg.ys[i]);
