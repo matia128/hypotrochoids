@@ -19,6 +19,7 @@ let colorState = {
   initialized: false,
 };
 
+let randomRhosActive = false;
 let colorMode = 'bounce'; // 'bounce' | 'rainbow' | 'mono'
 let monoHue = 0;
 const PEN_WIDTH_VALUES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4];
@@ -121,7 +122,32 @@ function addPlayAllButton(container) {
   const randomBtn = document.createElement("button");
   randomBtn.id = "randomRhosBtn";
   randomBtn.textContent = "Random";
-  randomBtn.addEventListener("click", () => {
+  if (randomRhosActive) randomBtn.classList.add("active");
+  let _rndHoldTimer = null;
+  let _rndHeld = false;
+  randomBtn.addEventListener("mousedown", () => {
+    _rndHeld = false;
+    _rndHoldTimer = setTimeout(() => {
+      _rndHeld = true;
+      randomRhosActive = !randomRhosActive;
+      randomBtn.classList.toggle("active", randomRhosActive);
+      if (randomRhosActive) {
+        stopAllRhoAnimations();
+        for (const state of rhoAnimStates) {
+          if (!state) continue;
+          const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+          state.slider.value = String(v);
+          state.animValue = null;
+          state.dir = 1;
+        }
+        computeFromUI(false, false, false);
+      }
+    }, 400);
+  });
+  randomBtn.addEventListener("mouseup", () => clearTimeout(_rndHoldTimer));
+  randomBtn.addEventListener("mouseleave", () => clearTimeout(_rndHoldTimer));
+  randomBtn.addEventListener("click", (e) => {
+    if (_rndHeld) { _rndHeld = false; return; }
     stopAllRhoAnimations();
     for (const state of rhoAnimStates) {
       if (!state) continue;
@@ -432,7 +458,18 @@ function setup() {
   });
 
   const drawBtn = document.getElementById("drawBtn");
-  drawBtn.addEventListener("click", () => computeFromUI(true, true, true));
+  drawBtn.addEventListener("click", () => {
+    if (randomRhosActive) {
+      for (const state of rhoAnimStates) {
+        if (!state) continue;
+        const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+        state.slider.value = String(v);
+        state.animValue = null;
+        state.dir = 1;
+      }
+    }
+    computeFromUI(true, false, true);
+  });
 
   const stepButtons = document.querySelectorAll(".step-btn");
   stepButtons.forEach(btn => {
@@ -800,13 +837,46 @@ document.addEventListener("fullscreenchange", () => {
   document.getElementById("fullscreenBtn").innerHTML = document.fullscreenElement ? ICON_EXIT : ICON_ENTER;
 });
 
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    if (document.activeElement && document.activeElement !== document.body) {
+      document.activeElement.blur();
+    }
+  }
+  if (e.key === "Enter" && document.activeElement && document.activeElement.tagName === "BUTTON") {
+    e.preventDefault();
+  }
+  const tag = document.activeElement && document.activeElement.tagName;
+  const isTyping = tag === "INPUT" || tag === "TEXTAREA";
+  if (e.key === "f" && !isTyping) {
+    e.preventDefault();
+    toggleFullscreen();
+  }
+  if (e.key === " " && !isTyping) {
+    e.preventDefault();
+    const playAllBtn = document.getElementById("playAllBtn");
+    if (playAllBtn) playAllBtn.click();
+  }
+});
+
 function keyPressed() {
   if (keyCode === TAB) {
     zoomLevel = 1.0;
     offsetX = 0;
     offsetY = 0;
+    return false;
   } else if (keyCode === ENTER) {
-    computeFromUI(true, true, true);
+    if (randomRhosActive) {
+      for (const state of rhoAnimStates) {
+        if (!state) continue;
+        const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+        state.slider.value = String(v);
+        state.animValue = null;
+        state.dir = 1;
+      }
+    }
+    computeFromUI(true, false, true);
   }
 }
 

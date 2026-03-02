@@ -229,9 +229,10 @@
       cursor: pointer;
       font-size: 12px;
     }
-    #playAllBtn.active {
+    #playAllBtn.active, #randomRhosBtn.active {
       border-color: #3b82f6;
       background: #1e3a8a;
+      color: #fff;
     }
     #sliderTooltip {
       position: fixed;
@@ -464,7 +465,7 @@
       </div>
     </div>
 
-  <button id="fullscreenBtn" title="Toggle fullscreen"></button>
+  <button id="fullscreenBtn" title="Toggle fullscreen" tabindex="-1"></button>
   <script src="sketch.js"></script>
 </body>
 </html>
