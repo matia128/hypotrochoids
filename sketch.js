@@ -362,7 +362,7 @@ function setup() {
 
   const angleInfoIcon = document.getElementById("angleInfoIcon");
   if (angleInfoIcon) {
-    const angleInfoText = "The smoothness of the curve, how often a new point is calculated.";
+    const angleInfoText = "The smoothness of the curve, how often a new point is calculated. (Degrees)";
     angleInfoIcon.addEventListener("mouseenter", () => {
       if (!sliderTooltip) {
         sliderTooltip = document.createElement("div");
