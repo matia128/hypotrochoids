@@ -132,13 +132,11 @@ function addPlayAllButton(container) {
       randomRhosActive = !randomRhosActive;
       randomBtn.classList.toggle("active", randomRhosActive);
       if (randomRhosActive) {
-        stopAllRhoAnimations();
         for (const state of rhoAnimStates) {
           if (!state) continue;
           const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
           state.slider.value = String(v);
-          state.animValue = null;
-          state.dir = 1;
+          state.animValue = v;
         }
         computeFromUI(false, false, false);
       }
@@ -148,13 +146,11 @@ function addPlayAllButton(container) {
   randomBtn.addEventListener("mouseleave", () => clearTimeout(_rndHoldTimer));
   randomBtn.addEventListener("click", (e) => {
     if (_rndHeld) { _rndHeld = false; return; }
-    stopAllRhoAnimations();
     for (const state of rhoAnimStates) {
       if (!state) continue;
       const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
       state.slider.value = String(v);
-      state.animValue = null;
-      state.dir = 1;
+      state.animValue = v;
     }
     computeFromUI(false, false, false);
   });
@@ -391,10 +387,14 @@ function setup() {
   const hueRow = document.getElementById("hueRow");
   paletteBtns.forEach(btn => {
     btn.addEventListener("click", () => {
+      const wasActive = colorMode === btn.dataset.mode;
       colorMode = btn.dataset.mode;
       paletteBtns.forEach(b => b.classList.toggle("active", b === btn));
       colorStepRow.style.display = colorMode === 'mono' ? "none" : "";
       hueRow.style.display = colorMode === 'mono' ? "" : "none";
+      if (wasActive && colorMode === 'bounce') {
+        colorState.initialized = false;
+      }
       computeFromUI(false, false, true, true);
     });
   });
