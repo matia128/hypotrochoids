@@ -203,19 +203,25 @@
     .palette-rnd-btn {
       display: none;
       width: 100%;
-      padding: 3px 0;
-      background: #1a1a2e;
+      padding: 7px 0 3px;
+      background: #2b2b2b;
       color: #aaa;
-      border: 1px solid #3b82f6;
+      border: 1px solid #555;
       border-top: none;
       border-radius: 0 0 3px 3px;
       cursor: pointer;
       font-size: 10px;
+      line-height: 1.2;
     }
-    .palette-col.active .palette-rnd-btn { display: block; }
-    .palette-rnd-btn:hover { background: #222; color: #eee; }
+    .palette-col.active .palette-rnd-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .palette-rnd-btn:hover { background: #333; color: #eee; }
     .palette-rnd-btn.active {
       background: #1e3a8a;
+      border-color: #3b82f6;
       color: #fff;
     }
     #hueSlider {
@@ -253,6 +259,12 @@
       border-radius: 3px;
       cursor: pointer;
       font-size: 12px;
+    }
+    #randomRhosBtn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.2;
     }
     #playAllBtn.active, #randomRhosBtn.active {
       border-color: #3b82f6;
@@ -410,76 +422,97 @@
       background: rgba(60,60,60,0.9);
       color: #fff;
     }
-    .library-divider {
-      border: none;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      margin: 10px 0 8px;
-    }
-    #saveShapeBtn, #copyLinkBtn {
+    #saveShapeBtn, #copyLinkBtn, #libraryBtn {
       flex: 1;
       padding: 4px 0;
-      border-radius: 4px;
-      border: 1px solid #555;
       background: #222;
       color: #ccc;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    #saveShapeBtn:hover, #copyLinkBtn:hover { background: #333; }
-    #copyLinkBtn.copied { border-color: #22c55e; color: #22c55e; }
-    .library-header {
-      font-size: 11px;
-      color: #aaa;
-      margin: 0 0 6px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    #libraryList { display: flex; flex-direction: column; gap: 6px; }
-    .library-empty { font-size: 10px; color: #666; text-align: center; padding: 6px 0; }
-    .library-item {
-      display: flex;
-      gap: 6px;
-      align-items: flex-start;
-      background: rgba(255,255,255,0.05);
-      border-radius: 4px;
-      padding: 5px;
-    }
-    .library-thumb {
-      width: 60px;
-      height: 45px;
-      object-fit: cover;
+      border: 1px solid #555;
       border-radius: 3px;
-      flex-shrink: 0;
-      border: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      font-size: 12px;
     }
-    .library-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-    .library-name {
+    #saveShapeBtn:hover, #copyLinkBtn:hover, #libraryBtn:hover { background: #333; }
+    #copyLinkBtn.copied { border-color: #22c55e; color: #22c55e; }
+    #saveModal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 300;
+    }
+    #saveModalCard {
+      width: min(360px, calc(100vw - 24px));
+      background: rgba(28, 28, 28, 0.96);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #saveModalTitle {
+      font-size: 13px;
+      margin: 0 0 8px;
+      color: #eee;
+    }
+    #saveModalPreview {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 6px;
+      padding: 6px;
+      margin-bottom: 8px;
+    }
+    #savePreviewImg {
+      width: 90px;
+      height: 68px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #0a0a0a;
+      flex-shrink: 0;
+    }
+    .save-field {
       width: 100%;
       box-sizing: border-box;
-      background: transparent;
-      border: 1px solid transparent;
+      border: 1px solid #555;
+      background: #101010;
       color: #eee;
-      font-size: 11px;
-      padding: 1px 3px;
-      border-radius: 3px;
+      border-radius: 4px;
+      padding: 5px 6px;
+      font-size: 12px;
       outline: none;
     }
-    .library-name:hover, .library-name:focus { border-color: #555; background: #111; }
-    .library-btns { display: flex; gap: 3px; }
-    .library-btns button {
+    .save-meta {
+      font-size: 11px;
+      color: #999;
+    }
+    #savePreviewMeta {
       flex: 1;
-      font-size: 10px;
-      padding: 2px 4px;
-      border-radius: 3px;
-      border: 1px solid #555;
+      min-width: 0;
+      min-height: 68px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    #saveModalBtns {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    #saveModalBtns button {
+      flex: 1;
+      padding: 4px 0;
       background: #222;
       color: #ccc;
+      border: 1px solid #555;
+      border-radius: 3px;
       cursor: pointer;
+      font-size: 12px;
     }
-    .library-btns button:hover { background: #333; }
-    .library-btn-del { color: #f87171 !important; border-color: #7f1d1d !important; }
-    .library-btn-del:hover { background: #450a0a !important; }
+    #saveModalBtns button:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -569,18 +602,32 @@
       </div>
       <button id="drawBtn">Draw</button>
       <div style="display:flex;gap:4px;margin-top:6px;">
-        <button type="button" id="saveShapeBtn">⬇ Save</button>
-        <button type="button" id="copyLinkBtn">🔗 Copy Link</button>
+        <button type="button" id="saveShapeBtn">↓ Save</button>
+        <button type="button" id="copyLinkBtn">Copy Link</button>
+        <button type="button" id="libraryBtn">Library</button>
       </div>
-      <hr class="library-divider" />
-      <div class="library-header"><span id="libraryHeading">Library</span></div>
-      <div id="libraryList"></div>
       <div id="hint">
         Scroll to zoom, drag to pan, press Tab to reset zoom.
       </div>
     </div>
 
   <button id="fullscreenBtn" title="Toggle fullscreen" tabindex="-1"></button>
+  <div id="saveModal" role="dialog" aria-modal="true" aria-labelledby="saveModalTitle">
+    <div id="saveModalCard">
+      <div id="saveModalTitle">Save project</div>
+      <div id="saveModalPreview">
+        <img id="savePreviewImg" alt="Preview" />
+        <div id="savePreviewMeta">
+          <input id="saveNameInput" class="save-field" type="text" />
+          <div id="saveDateText" class="save-meta"></div>
+        </div>
+      </div>
+      <div id="saveModalBtns">
+        <button type="button" id="saveModalCancelBtn">Cancel</button>
+        <button type="button" id="saveModalConfirmBtn">Save</button>
+      </div>
+    </div>
+  </div>
   <script src="sketch.js"></script>
 </body>
 </html>

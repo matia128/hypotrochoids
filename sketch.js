@@ -24,6 +24,8 @@ let randomColorActive = false;
 let colorMode = 'bounce'; // 'bounce' | 'rainbow' | 'mono'
 let monoHue = 0;
 let rainbowOffset = 0;
+let lastSavedShapeKey = null;
+let pendingSaveSnapshot = null;
 const PEN_WIDTH_VALUES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4];
 let penWidth = 1;
 const OPACITY_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
@@ -316,6 +318,32 @@ function randomizeColors() {
   }
 }
 
+function setSaveButtonSaved(isSaved) {
+  const btn = document.getElementById("saveShapeBtn");
+  if (!btn) return;
+  btn.textContent = isSaved ? "✓ Save" : "↓ Save";
+}
+
+function markShapeChanged() {
+  setSaveButtonSaved(false);
+}
+
+function formatProjectTimestamp(d) {
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getNextShapeName() {
+  const lib = getLibrary();
+  let maxNum = 0;
+  for (const entry of lib) {
+    const m = /^Shape\s+(\d+)$/i.exec((entry && entry.name) ? String(entry.name).trim() : "");
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n > maxNum) maxNum = n;
+  }
+  return `Shape ${maxNum + 1}`;
+}
+
 // ── Library ──────────────────────────────────────────────────────────────────
 
 function getShapeParams() {
@@ -331,6 +359,20 @@ function getShapeParams() {
     monoHue,
     penWidth,
     opacity: lineOpacity,
+    rainbowOffset,
+    randomColorActive,
+    zoomLevel,
+    offsetX,
+    offsetY,
+    colorState: {
+      r: colorState.r,
+      g: colorState.g,
+      b: colorState.b,
+      rj: colorState.rj,
+      gj: colorState.gj,
+      bj: colorState.bj,
+      initialized: colorState.initialized,
+    },
   };
 }
 
@@ -339,8 +381,26 @@ function applyShapeParams(params) {
   document.getElementById("freqs").value = params.freqs || "";
 
   colorMode = params.colorMode || 'bounce';
+  randomColorActive = !!params.randomColorActive;
+  if (Number.isFinite(params.rainbowOffset)) {
+    rainbowOffset = params.rainbowOffset;
+  }
+  if (params.colorState && Number.isFinite(params.colorState.r) && Number.isFinite(params.colorState.g) && Number.isFinite(params.colorState.b)) {
+    colorState.r = params.colorState.r;
+    colorState.g = params.colorState.g;
+    colorState.b = params.colorState.b;
+    colorState.rj = Number.isFinite(params.colorState.rj) ? params.colorState.rj : 1;
+    colorState.gj = Number.isFinite(params.colorState.gj) ? params.colorState.gj : 1;
+    colorState.bj = Number.isFinite(params.colorState.bj) ? params.colorState.bj : 1;
+    colorState.initialized = !!params.colorState.initialized;
+  }
+
   const paletteBtns = document.querySelectorAll(".palette-btn");
+  const paletteCols = document.querySelectorAll(".palette-col");
+  const paletteRndBtns = document.querySelectorAll(".palette-rnd-btn");
   paletteBtns.forEach(b => b.classList.toggle("active", b.dataset.mode === colorMode));
+  paletteCols.forEach(c => c.classList.toggle("active", c.querySelector(".palette-btn").dataset.mode === colorMode));
+  paletteRndBtns.forEach(b => b.classList.toggle("active", randomColorActive && b.dataset.mode === colorMode));
   const colorStepRow = document.getElementById("colorStepRow");
   const hueRow = document.getElementById("hueRow");
   if (colorStepRow) colorStepRow.style.display = colorMode === 'mono' ? "none" : "";
@@ -366,7 +426,7 @@ function applyShapeParams(params) {
   const opSpan = document.getElementById("opacityValue");
   if (opSpan) opSpan.textContent = String(Math.round(lineOpacity * 10) / 10);
 
-  computeFromUI(true, true, false);
+  computeFromUI(false, false, false);
 
   if (params.rhos && params.rhos.length > 0) {
     const sliders = document.querySelectorAll("input.rho-slider");
@@ -378,6 +438,10 @@ function applyShapeParams(params) {
     });
     computeFromUI(false, false, false);
   }
+
+  if (Number.isFinite(params.zoomLevel)) zoomLevel = params.zoomLevel;
+  if (Number.isFinite(params.offsetX)) offsetX = params.offsetX;
+  if (Number.isFinite(params.offsetY)) offsetY = params.offsetY;
 }
 
 function captureThumbnail() {
@@ -462,13 +526,49 @@ function renderLibrary() {
 }
 
 function saveShape() {
+  const snapshot = pendingSaveSnapshot || { params: getShapeParams(), thumbnail: captureThumbnail() };
   const now = new Date();
-  const name = `Shape ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  const entry = { id: Date.now().toString(), name, thumbnail: captureThumbnail(), params: getShapeParams() };
+  const nameInput = document.getElementById("saveNameInput");
+  const name = nameInput ? (nameInput.value.trim() || getNextShapeName()) : getNextShapeName();
+  const description = formatProjectTimestamp(now);
+  const entry = {
+    id: Date.now().toString(),
+    name,
+    description,
+    thumbnail: snapshot.thumbnail,
+    params: snapshot.params,
+    createdAt: now.toISOString(),
+  };
   const lib = getLibrary();
   lib.unshift(entry);
   saveLibrary(lib);
-  renderLibrary();
+  lastSavedShapeKey = JSON.stringify(snapshot.params);
+  pendingSaveSnapshot = null;
+  setSaveButtonSaved(true);
+}
+
+function openSaveModal() {
+  const modal = document.getElementById("saveModal");
+  const preview = document.getElementById("savePreviewImg");
+  const nameInput = document.getElementById("saveNameInput");
+  const dateText = document.getElementById("saveDateText");
+  if (!modal || !preview || !nameInput || !dateText) return;
+  const now = new Date();
+  pendingSaveSnapshot = {
+    params: getShapeParams(),
+    thumbnail: captureThumbnail(),
+  };
+  preview.src = pendingSaveSnapshot.thumbnail || "";
+  nameInput.value = getNextShapeName();
+  dateText.textContent = formatProjectTimestamp(now);
+  modal.style.display = "flex";
+  nameInput.focus();
+  nameInput.select();
+}
+
+function closeSaveModal() {
+  const modal = document.getElementById("saveModal");
+  if (modal) modal.style.display = "none";
 }
 
 function encodeShapeToURL(params) {
@@ -481,6 +581,20 @@ function encodeShapeToURL(params) {
   p.set('hue', params.monoHue);
   p.set('pw', params.penWidth);
   p.set('op', params.opacity);
+  p.set('ro', params.rainbowOffset);
+  p.set('rc', params.randomColorActive ? '1' : '0');
+  p.set('z', params.zoomLevel);
+  p.set('ox', params.offsetX);
+  p.set('oy', params.offsetY);
+  if (params.colorState) {
+    p.set('cr', params.colorState.r);
+    p.set('cg', params.colorState.g);
+    p.set('cb', params.colorState.b);
+    p.set('crj', params.colorState.rj);
+    p.set('cgj', params.colorState.gj);
+    p.set('cbj', params.colorState.bj);
+    p.set('ci', params.colorState.initialized ? '1' : '0');
+  }
   return location.href.split('#')[0] + '#' + p.toString();
 }
 
@@ -498,6 +612,20 @@ function loadFromURL() {
     monoHue: parseInt(p.get('hue')) || 0,
     penWidth: parseFloat(p.get('pw')) || 1,
     opacity: parseFloat(p.get('op')) || 1,
+    rainbowOffset: parseInt(p.get('ro')),
+    randomColorActive: p.get('rc') === '1',
+    zoomLevel: parseFloat(p.get('z')),
+    offsetX: parseFloat(p.get('ox')),
+    offsetY: parseFloat(p.get('oy')),
+    colorState: {
+      r: parseFloat(p.get('cr')),
+      g: parseFloat(p.get('cg')),
+      b: parseFloat(p.get('cb')),
+      rj: parseFloat(p.get('crj')),
+      gj: parseFloat(p.get('cgj')),
+      bj: parseFloat(p.get('cbj')),
+      initialized: p.get('ci') === '1',
+    },
   });
 }
 
@@ -606,9 +734,10 @@ function setup() {
   paletteBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       const wasActive = colorMode === btn.dataset.mode;
+      const modeChanged = !wasActive;
       colorMode = btn.dataset.mode;
-      if (wasActive && colorMode === 'bounce') {
-        colorState.initialized = false;
+      if (modeChanged) {
+        randomColorActive = false;
       }
       updatePaletteUI();
       computeFromUI(false, false, true, true);
@@ -664,6 +793,7 @@ function setup() {
   const penWidthMax = document.getElementById("penWidthMax");
   function updatePenWidthDisplay() {
     penWidthValSpan.textContent = String(penWidth);
+    markShapeChanged();
     redraw();
   }
   penWidthMin.addEventListener("click", () => {
@@ -692,6 +822,7 @@ function setup() {
   const opacityMax = document.getElementById("opacityMax");
   function updateOpacityDisplay() {
     opacityValSpan.textContent = String(Math.round(lineOpacity * 10) / 10);
+    markShapeChanged();
     redraw();
   }
   opacityMin.addEventListener("click", () => {
@@ -727,7 +858,7 @@ function setup() {
     if (randomColorActive) {
       randomizeColors();
     }
-    computeFromUI(true, false, true);
+    computeFromUI(randomColorActive && colorMode === "bounce", false, true);
   });
 
   const stepButtons = document.querySelectorAll(".step-btn");
@@ -743,7 +874,22 @@ function setup() {
     });
   });
 
-  document.getElementById("saveShapeBtn").addEventListener("click", saveShape);
+  document.getElementById("saveShapeBtn").addEventListener("click", openSaveModal);
+  document.getElementById("libraryBtn").addEventListener("click", () => {
+    window.location.href = "library.html";
+  });
+  document.getElementById("saveModalCancelBtn").addEventListener("click", closeSaveModal);
+  document.getElementById("saveModalConfirmBtn").addEventListener("click", () => {
+    saveShape();
+    closeSaveModal();
+  });
+  document.getElementById("saveNameInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveShape();
+      closeSaveModal();
+    }
+  });
 
   const copyLinkBtn = document.getElementById("copyLinkBtn");
   copyLinkBtn.addEventListener("click", () => {
@@ -767,7 +913,6 @@ function setup() {
     }
   });
 
-  renderLibrary();
   loadFromURL();
 
 }
@@ -1029,6 +1174,7 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
     offsetX = 0;
     offsetY = 0;
   }
+  markShapeChanged();
 }
 
 function draw() {
@@ -1072,6 +1218,7 @@ function mouseWheel(event) {
   }
   offsetX = mouseRelX - worldX * zoomLevel;
   offsetY = mouseRelY - worldY * zoomLevel;
+  markShapeChanged();
 
   // prevent the page from scrolling so the UI box
   // visually stays fixed while using wheel-zoom
@@ -1090,6 +1237,7 @@ function mouseDragged() {
   }
   offsetX += movedX;
   offsetY += movedY;
+  markShapeChanged();
 }
 
 // Enter fullscreen: elbows at outer corners, arms point inward (expand to fill screen)
@@ -1165,7 +1313,7 @@ function keyPressed() {
     if (randomColorActive) {
       randomizeColors();
     }
-    computeFromUI(true, false, true);
+    computeFromUI(randomColorActive && colorMode === "bounce", false, true);
   }
 }
 
