@@ -178,8 +178,14 @@
       border-color: #3b82f6;
       background: #1e3a8a;
     }
-    .palette-btn {
+    .palette-col {
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .palette-btn {
+      width: 100%;
       padding: 4px 0;
       background: #222;
       color: #ccc;
@@ -190,6 +196,25 @@
     }
     .palette-btn.active {
       border-color: #3b82f6;
+      background: #1e3a8a;
+      color: #fff;
+      border-radius: 3px 3px 0 0;
+    }
+    .palette-rnd-btn {
+      display: none;
+      width: 100%;
+      padding: 3px 0;
+      background: #1a1a2e;
+      color: #aaa;
+      border: 1px solid #3b82f6;
+      border-top: none;
+      border-radius: 0 0 3px 3px;
+      cursor: pointer;
+      font-size: 10px;
+    }
+    .palette-col.active .palette-rnd-btn { display: block; }
+    .palette-rnd-btn:hover { background: #222; color: #eee; }
+    .palette-rnd-btn.active {
       background: #1e3a8a;
       color: #fff;
     }
@@ -385,6 +410,76 @@
       background: rgba(60,60,60,0.9);
       color: #fff;
     }
+    .library-divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      margin: 10px 0 8px;
+    }
+    #saveShapeBtn, #copyLinkBtn {
+      flex: 1;
+      padding: 4px 0;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background: #222;
+      color: #ccc;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #saveShapeBtn:hover, #copyLinkBtn:hover { background: #333; }
+    #copyLinkBtn.copied { border-color: #22c55e; color: #22c55e; }
+    .library-header {
+      font-size: 11px;
+      color: #aaa;
+      margin: 0 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #libraryList { display: flex; flex-direction: column; gap: 6px; }
+    .library-empty { font-size: 10px; color: #666; text-align: center; padding: 6px 0; }
+    .library-item {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+      background: rgba(255,255,255,0.05);
+      border-radius: 4px;
+      padding: 5px;
+    }
+    .library-thumb {
+      width: 60px;
+      height: 45px;
+      object-fit: cover;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .library-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .library-name {
+      width: 100%;
+      box-sizing: border-box;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #eee;
+      font-size: 11px;
+      padding: 1px 3px;
+      border-radius: 3px;
+      outline: none;
+    }
+    .library-name:hover, .library-name:focus { border-color: #555; background: #111; }
+    .library-btns { display: flex; gap: 3px; }
+    .library-btns button {
+      flex: 1;
+      font-size: 10px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      border: 1px solid #555;
+      background: #222;
+      color: #ccc;
+      cursor: pointer;
+    }
+    .library-btns button:hover { background: #333; }
+    .library-btn-del { color: #f87171 !important; border-color: #7f1d1d !important; }
+    .library-btn-del:hover { background: #450a0a !important; }
   </style>
 </head>
 <body>
@@ -423,10 +518,19 @@
         <button type="button" class="step-btn" data-step="360">360</button>
       </div>
       <label>Color palette</label>
-      <div style="display:flex;gap:4px;margin-bottom:8px;">
-        <button type="button" class="palette-btn active" data-mode="bounce">Random</button>
-        <button type="button" class="palette-btn" data-mode="rainbow">Rainbow</button>
-        <button type="button" class="palette-btn" data-mode="mono">Mono</button>
+      <div id="paletteRow" style="display:flex;gap:4px;margin-bottom:8px;">
+        <div class="palette-col active">
+          <button type="button" class="palette-btn active" data-mode="bounce">Bounce</button>
+          <button type="button" class="palette-rnd-btn" data-mode="bounce">Random</button>
+        </div>
+        <div class="palette-col">
+          <button type="button" class="palette-btn" data-mode="rainbow">Rainbow</button>
+          <button type="button" class="palette-rnd-btn" data-mode="rainbow">Random</button>
+        </div>
+        <div class="palette-col">
+          <button type="button" class="palette-btn" data-mode="mono">Mono</button>
+          <button type="button" class="palette-rnd-btn" data-mode="mono">Random</button>
+        </div>
       </div>
       <div id="colorStepRow">
         <div style="display:flex;align-items:center;gap:6px;margin-top:15px;margin-bottom:10px;">
@@ -446,20 +550,31 @@
       <div style="display:flex;align-items:center;position:relative;margin-top:15px;margin-bottom:10px;">
         <label style="margin:0;">Pen width:</label>
         <div id="penWidthControl" style="position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;">
+          <button type="button" class="rho-speed-btn" id="penWidthMin">«</button>
           <button type="button" class="rho-speed-btn" id="penWidthDown">−</button>
           <span id="penWidthValue" style="font-size:11px;color:#eee;min-width:2.5em;text-align:center;">1</span>
           <button type="button" class="rho-speed-btn" id="penWidthUp">+</button>
+          <button type="button" class="rho-speed-btn" id="penWidthMax">»</button>
         </div>
       </div>
       <div style="display:flex;align-items:center;position:relative;margin-bottom:10px;">
         <label style="margin:0;">Opacity:</label>
         <div id="opacityControl" style="position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;">
+          <button type="button" class="rho-speed-btn" id="opacityMin">«</button>
           <button type="button" class="rho-speed-btn" id="opacityDown">−</button>
           <span id="opacityValue" style="font-size:11px;color:#eee;min-width:2.5em;text-align:center;">1</span>
           <button type="button" class="rho-speed-btn" id="opacityUp">+</button>
+          <button type="button" class="rho-speed-btn" id="opacityMax">»</button>
         </div>
       </div>
       <button id="drawBtn">Draw</button>
+      <div style="display:flex;gap:4px;margin-top:6px;">
+        <button type="button" id="saveShapeBtn">⬇ Save</button>
+        <button type="button" id="copyLinkBtn">🔗 Copy Link</button>
+      </div>
+      <hr class="library-divider" />
+      <div class="library-header"><span id="libraryHeading">Library</span></div>
+      <div id="libraryList"></div>
       <div id="hint">
         Scroll to zoom, drag to pan, press Tab to reset zoom.
       </div>

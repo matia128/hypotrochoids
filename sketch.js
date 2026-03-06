@@ -20,8 +20,10 @@ let colorState = {
 };
 
 let randomRhosActive = false;
+let randomColorActive = false;
 let colorMode = 'bounce'; // 'bounce' | 'rainbow' | 'mono'
 let monoHue = 0;
+let rainbowOffset = 0;
 const PEN_WIDTH_VALUES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4];
 let penWidth = 1;
 const OPACITY_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
@@ -137,6 +139,7 @@ function addPlayAllButton(container) {
           const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
           state.slider.value = String(v);
           state.animValue = v;
+          state.dir = Math.random() < 0.5 ? 1 : -1;
         }
         computeFromUI(false, false, false);
       }
@@ -151,6 +154,7 @@ function addPlayAllButton(container) {
       const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
       state.slider.value = String(v);
       state.animValue = v;
+      state.dir = Math.random() < 0.5 ? 1 : -1;
     }
     computeFromUI(false, false, false);
   });
@@ -297,11 +301,214 @@ function rhoAnimationStep(timestamp) {
   }
 }
 
+function randomizeColors() {
+  if (colorMode === 'bounce') {
+    colorState.initialized = false;
+    computeFromUI(true, false, true, true);
+  } else if (colorMode === 'rainbow') {
+    rainbowOffset = Math.floor(Math.random() * 1530);
+    computeFromUI(false, false, true, true);
+  } else if (colorMode === 'mono') {
+    monoHue = Math.floor(Math.random() * 360);
+    const hs = document.getElementById("hueSlider");
+    if (hs) hs.value = monoHue;
+    computeFromUI(false, false, true, true);
+  }
+}
+
+// ── Library ──────────────────────────────────────────────────────────────────
+
+function getShapeParams() {
+  const freqs = document.getElementById("freqs").value;
+  const rhos = rhoAnimStates.map(s => s ? parseFloat(s.slider.value) : 0);
+  const colorStepEl = document.getElementById("colorStep");
+  return {
+    freqs,
+    rhos,
+    step: currentStep,
+    colorMode,
+    colorStep: parseInt(colorStepEl ? colorStepEl.value : "50"),
+    monoHue,
+    penWidth,
+    opacity: lineOpacity,
+  };
+}
+
+function applyShapeParams(params) {
+  stopAllRhoAnimations();
+  document.getElementById("freqs").value = params.freqs || "";
+
+  colorMode = params.colorMode || 'bounce';
+  const paletteBtns = document.querySelectorAll(".palette-btn");
+  paletteBtns.forEach(b => b.classList.toggle("active", b.dataset.mode === colorMode));
+  const colorStepRow = document.getElementById("colorStepRow");
+  const hueRow = document.getElementById("hueRow");
+  if (colorStepRow) colorStepRow.style.display = colorMode === 'mono' ? "none" : "";
+  if (hueRow) hueRow.style.display = colorMode === 'mono' ? "" : "none";
+
+  const colorStep = params.colorStep || 50;
+  const cs = document.getElementById("colorStep");
+  const csv = document.getElementById("colorStepVal");
+  if (cs) cs.value = colorStep;
+  if (csv) csv.value = colorStep;
+
+  monoHue = params.monoHue || 0;
+  const hueSlider = document.getElementById("hueSlider");
+  if (hueSlider) hueSlider.value = monoHue;
+
+  currentStep = params.step || 4;
+  document.querySelectorAll(".step-btn").forEach(b => b.classList.toggle("active", parseInt(b.dataset.step) === currentStep));
+
+  penWidth = PEN_WIDTH_VALUES.reduce((a, b) => Math.abs(b - params.penWidth) < Math.abs(a - params.penWidth) ? b : a, PEN_WIDTH_VALUES[0]);
+  lineOpacity = OPACITY_VALUES.reduce((a, b) => Math.abs(b - params.opacity) < Math.abs(a - params.opacity) ? b : a, OPACITY_VALUES[OPACITY_VALUES.length - 1]);
+  const pwSpan = document.getElementById("penWidthValue");
+  if (pwSpan) pwSpan.textContent = String(penWidth);
+  const opSpan = document.getElementById("opacityValue");
+  if (opSpan) opSpan.textContent = String(Math.round(lineOpacity * 10) / 10);
+
+  computeFromUI(true, true, false);
+
+  if (params.rhos && params.rhos.length > 0) {
+    const sliders = document.querySelectorAll("input.rho-slider");
+    params.rhos.forEach((v, i) => {
+      if (sliders[i]) {
+        sliders[i].value = String(v);
+        if (rhoAnimStates[i]) rhoAnimStates[i].animValue = v;
+      }
+    });
+    computeFromUI(false, false, false);
+  }
+}
+
+function captureThumbnail() {
+  const src = document.querySelector('canvas');
+  if (!src) return null;
+  const thumb = document.createElement('canvas');
+  thumb.width = 80;
+  thumb.height = 60;
+  thumb.getContext('2d').drawImage(src, 0, 0, 80, 60);
+  return thumb.toDataURL('image/jpeg', 0.75);
+}
+
+function getLibrary() {
+  try { return JSON.parse(localStorage.getItem('hypo_library') || '[]'); }
+  catch { return []; }
+}
+
+function saveLibrary(lib) {
+  localStorage.setItem('hypo_library', JSON.stringify(lib));
+}
+
+function renderLibrary() {
+  const list = document.getElementById("libraryList");
+  const heading = document.getElementById("libraryHeading");
+  if (!list) return;
+  const lib = getLibrary();
+  if (heading) heading.textContent = lib.length > 0 ? `Library (${lib.length})` : "Library";
+  list.innerHTML = "";
+  if (lib.length === 0) {
+    list.innerHTML = '<div class="library-empty">No saved shapes yet.</div>';
+    return;
+  }
+  lib.forEach(entry => {
+    const item = document.createElement("div");
+    item.className = "library-item";
+
+    if (entry.thumbnail) {
+      const img = document.createElement("img");
+      img.src = entry.thumbnail;
+      img.className = "library-thumb";
+      item.appendChild(img);
+    }
+
+    const info = document.createElement("div");
+    info.className = "library-info";
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "library-name";
+    nameInput.value = entry.name;
+    nameInput.addEventListener("change", () => {
+      const lib2 = getLibrary();
+      const e = lib2.find(x => x.id === entry.id);
+      if (e) { e.name = nameInput.value; saveLibrary(lib2); }
+    });
+    info.appendChild(nameInput);
+
+    const btns = document.createElement("div");
+    btns.className = "library-btns";
+
+    const loadBtn = document.createElement("button");
+    loadBtn.textContent = "Load";
+    loadBtn.type = "button";
+    loadBtn.addEventListener("click", () => applyShapeParams(entry.params));
+
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "✕";
+    delBtn.type = "button";
+    delBtn.className = "library-btn-del";
+    delBtn.title = "Delete";
+    delBtn.addEventListener("click", () => {
+      saveLibrary(getLibrary().filter(x => x.id !== entry.id));
+      renderLibrary();
+    });
+
+    btns.appendChild(loadBtn);
+    btns.appendChild(delBtn);
+    info.appendChild(btns);
+    item.appendChild(info);
+    list.appendChild(item);
+  });
+}
+
+function saveShape() {
+  const now = new Date();
+  const name = `Shape ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const entry = { id: Date.now().toString(), name, thumbnail: captureThumbnail(), params: getShapeParams() };
+  const lib = getLibrary();
+  lib.unshift(entry);
+  saveLibrary(lib);
+  renderLibrary();
+}
+
+function encodeShapeToURL(params) {
+  const p = new URLSearchParams();
+  p.set('freqs', params.freqs);
+  p.set('rhos', params.rhos.join(','));
+  p.set('step', params.step);
+  p.set('cm', params.colorMode);
+  p.set('cs', params.colorStep);
+  p.set('hue', params.monoHue);
+  p.set('pw', params.penWidth);
+  p.set('op', params.opacity);
+  return location.href.split('#')[0] + '#' + p.toString();
+}
+
+function loadFromURL() {
+  const hash = location.hash.slice(1);
+  if (!hash) return;
+  const p = new URLSearchParams(hash);
+  if (!p.has('freqs')) return;
+  applyShapeParams({
+    freqs: p.get('freqs') || '',
+    rhos: (p.get('rhos') || '').split(',').map(Number).filter(isFinite),
+    step: parseInt(p.get('step')) || 4,
+    colorMode: p.get('cm') || 'bounce',
+    colorStep: parseInt(p.get('cs')) || 50,
+    monoHue: parseInt(p.get('hue')) || 0,
+    penWidth: parseFloat(p.get('pw')) || 1,
+    opacity: parseFloat(p.get('op')) || 1,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
   canvas.parent(document.body);
   pixelDensity(1);
   noFill();
+  strokeCap(SQUARE);
   computeFromUI(true, true, true);
 
   const freqInfoIcon = document.getElementById("freqInfoIcon");
@@ -383,19 +590,48 @@ function setup() {
   }
 
   const paletteBtns = document.querySelectorAll(".palette-btn");
+  const paletteCols = document.querySelectorAll(".palette-col");
+  const paletteRndBtns = document.querySelectorAll(".palette-rnd-btn");
   const colorStepRow = document.getElementById("colorStepRow");
   const hueRow = document.getElementById("hueRow");
+
+  function updatePaletteUI() {
+    paletteBtns.forEach(b => b.classList.toggle("active", b.dataset.mode === colorMode));
+    paletteCols.forEach(c => c.classList.toggle("active", c.querySelector(".palette-btn").dataset.mode === colorMode));
+    paletteRndBtns.forEach(b => b.classList.toggle("active", randomColorActive && b.dataset.mode === colorMode));
+    colorStepRow.style.display = colorMode === 'mono' ? "none" : "";
+    hueRow.style.display = colorMode === 'mono' ? "" : "none";
+  }
+
   paletteBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       const wasActive = colorMode === btn.dataset.mode;
       colorMode = btn.dataset.mode;
-      paletteBtns.forEach(b => b.classList.toggle("active", b === btn));
-      colorStepRow.style.display = colorMode === 'mono' ? "none" : "";
-      hueRow.style.display = colorMode === 'mono' ? "" : "none";
       if (wasActive && colorMode === 'bounce') {
         colorState.initialized = false;
       }
+      updatePaletteUI();
       computeFromUI(false, false, true, true);
+    });
+  });
+
+  paletteRndBtns.forEach(btn => {
+    let holdTimer = null;
+    let held = false;
+    btn.addEventListener("mousedown", () => {
+      held = false;
+      holdTimer = setTimeout(() => {
+        held = true;
+        randomColorActive = !randomColorActive;
+        updatePaletteUI();
+        if (randomColorActive) randomizeColors();
+      }, 400);
+    });
+    btn.addEventListener("mouseup", () => clearTimeout(holdTimer));
+    btn.addEventListener("mouseleave", () => clearTimeout(holdTimer));
+    btn.addEventListener("click", () => {
+      if (held) { held = false; return; }
+      randomizeColors();
     });
   });
 
@@ -424,10 +660,16 @@ function setup() {
   const penWidthValSpan = document.getElementById("penWidthValue");
   const penWidthDown = document.getElementById("penWidthDown");
   const penWidthUp = document.getElementById("penWidthUp");
+  const penWidthMin = document.getElementById("penWidthMin");
+  const penWidthMax = document.getElementById("penWidthMax");
   function updatePenWidthDisplay() {
     penWidthValSpan.textContent = String(penWidth);
     redraw();
   }
+  penWidthMin.addEventListener("click", () => {
+    penWidth = PEN_WIDTH_VALUES[0];
+    updatePenWidthDisplay();
+  });
   penWidthDown.addEventListener("click", () => {
     const i = PEN_WIDTH_VALUES.indexOf(penWidth);
     penWidth = PEN_WIDTH_VALUES[Math.max(0, i - 1)];
@@ -438,14 +680,24 @@ function setup() {
     penWidth = PEN_WIDTH_VALUES[Math.min(PEN_WIDTH_VALUES.length - 1, i + 1)];
     updatePenWidthDisplay();
   });
+  penWidthMax.addEventListener("click", () => {
+    penWidth = PEN_WIDTH_VALUES[PEN_WIDTH_VALUES.length - 1];
+    updatePenWidthDisplay();
+  });
 
   const opacityValSpan = document.getElementById("opacityValue");
   const opacityDown = document.getElementById("opacityDown");
   const opacityUp = document.getElementById("opacityUp");
+  const opacityMin = document.getElementById("opacityMin");
+  const opacityMax = document.getElementById("opacityMax");
   function updateOpacityDisplay() {
     opacityValSpan.textContent = String(Math.round(lineOpacity * 10) / 10);
     redraw();
   }
+  opacityMin.addEventListener("click", () => {
+    lineOpacity = OPACITY_VALUES[0];
+    updateOpacityDisplay();
+  });
   opacityDown.addEventListener("click", () => {
     const i = OPACITY_VALUES.indexOf(Math.round(lineOpacity * 10) / 10);
     lineOpacity = OPACITY_VALUES[Math.max(0, i - 1)];
@@ -454,6 +706,10 @@ function setup() {
   opacityUp.addEventListener("click", () => {
     const i = OPACITY_VALUES.indexOf(Math.round(lineOpacity * 10) / 10);
     lineOpacity = OPACITY_VALUES[Math.min(OPACITY_VALUES.length - 1, i + 1)];
+    updateOpacityDisplay();
+  });
+  opacityMax.addEventListener("click", () => {
+    lineOpacity = OPACITY_VALUES[OPACITY_VALUES.length - 1];
     updateOpacityDisplay();
   });
 
@@ -465,8 +721,11 @@ function setup() {
         const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
         state.slider.value = String(v);
         state.animValue = null;
-        state.dir = 1;
+        state.dir = Math.random() < 0.5 ? 1 : -1;
       }
+    }
+    if (randomColorActive) {
+      randomizeColors();
     }
     computeFromUI(true, false, true);
   });
@@ -483,6 +742,33 @@ function setup() {
       computeFromUI(false, false, true);
     });
   });
+
+  document.getElementById("saveShapeBtn").addEventListener("click", saveShape);
+
+  const copyLinkBtn = document.getElementById("copyLinkBtn");
+  copyLinkBtn.addEventListener("click", () => {
+    const url = encodeShapeToURL(getShapeParams());
+    const confirm = (ok) => {
+      copyLinkBtn.textContent = ok ? "✓ Copied!" : "Copied!";
+      copyLinkBtn.classList.add("copied");
+      setTimeout(() => { copyLinkBtn.textContent = "🔗 Copy Link"; copyLinkBtn.classList.remove("copied"); }, 2000);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => confirm(true)).catch(() => confirm(false));
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.cssText = "position:fixed;opacity:0;";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      confirm(true);
+    }
+  });
+
+  renderLibrary();
+  loadFromURL();
 
 }
 
@@ -724,7 +1010,7 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
 
     let segColor;
     if (colorMode === 'rainbow') {
-      segColor = rainbowColor(si);
+      segColor = rainbowColor(si + rainbowOffset);
     } else if (colorMode === 'mono') {
       segColor = hslToRgb(monoHue, 1, 0.5);
     } else {
@@ -873,8 +1159,11 @@ function keyPressed() {
         const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
         state.slider.value = String(v);
         state.animValue = null;
-        state.dir = 1;
+        state.dir = Math.random() < 0.5 ? 1 : -1;
       }
+    }
+    if (randomColorActive) {
+      randomizeColors();
     }
     computeFromUI(true, false, true);
   }
