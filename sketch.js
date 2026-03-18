@@ -125,7 +125,7 @@ function addPlayAllButton(container) {
 
   const randomBtn = document.createElement("button");
   randomBtn.id = "randomRhosBtn";
-  randomBtn.textContent = "Random";
+  randomBtn.textContent = "Shuffle";
   if (randomRhosActive) randomBtn.classList.add("active");
   let _rndHoldTimer = null;
   let _rndHeld = false;
@@ -321,7 +321,9 @@ function randomizeColors() {
 function setSaveButtonSaved(isSaved) {
   const btn = document.getElementById("saveShapeBtn");
   if (!btn) return;
-  btn.textContent = isSaved ? "✓ Save" : "↓ Save";
+  btn.textContent = isSaved ? "✓ Saved" : "Save";
+  btn.classList.toggle("saved", isSaved);
+  btn.disabled = isSaved;
 }
 
 function markShapeChanged() {
@@ -447,10 +449,22 @@ function applyShapeParams(params) {
 function captureThumbnail() {
   const src = document.querySelector('canvas');
   if (!src) return null;
+  const srcW = src.width;
+  const srcH = src.height;
+  const targetAspect = 4 / 3;
+  const srcAspect = srcW / srcH;
+  let sx = 0, sy = 0, sW = srcW, sH = srcH;
+  if (srcAspect > targetAspect) {
+    sW = srcH * targetAspect;
+    sx = (srcW - sW) / 2;
+  } else if (srcAspect < targetAspect) {
+    sH = srcW / targetAspect;
+    sy = (srcH - sH) / 2;
+  }
   const thumb = document.createElement('canvas');
-  thumb.width = 80;
-  thumb.height = 60;
-  thumb.getContext('2d').drawImage(src, 0, 0, 80, 60);
+  thumb.width = 480;
+  thumb.height = 360;
+  thumb.getContext('2d').drawImage(src, sx, sy, sW, sH, 0, 0, 480, 360);
   return thumb.toDataURL('image/jpeg', 0.75);
 }
 
@@ -875,8 +889,32 @@ function setup() {
   });
 
   document.getElementById("saveShapeBtn").addEventListener("click", openSaveModal);
+  const libraryOverlay = document.getElementById("libraryOverlay");
+  const libraryIframe = libraryOverlay && libraryOverlay.querySelector("iframe");
   document.getElementById("libraryBtn").addEventListener("click", () => {
-    window.location.href = "library.html";
+    if (libraryIframe) {
+      libraryIframe.src = "library.html";
+      libraryOverlay.classList.add("visible");
+    }
+  });
+  const libraryOverlayFsBtn = document.getElementById("libraryOverlayFsBtn");
+  if (libraryOverlayFsBtn) {
+    libraryOverlayFsBtn.addEventListener("click", () => toggleFullscreen());
+  }
+  window.addEventListener("message", (e) => {
+    if (e.data === "hypo:close" && libraryOverlay) {
+      libraryOverlay.classList.remove("visible");
+      if (libraryIframe) libraryIframe.src = "about:blank";
+      document.getElementById("fullscreenBtn")?.focus();
+    } else if (e.data && e.data.type === "hypo:open" && e.data.hash) {
+      if (libraryOverlay) {
+        libraryOverlay.classList.remove("visible");
+        if (libraryIframe) libraryIframe.src = "about:blank";
+        document.getElementById("fullscreenBtn")?.focus();
+      }
+      location.hash = e.data.hash;
+      loadFromURL();
+    }
   });
   document.getElementById("saveModalCancelBtn").addEventListener("click", closeSaveModal);
   document.getElementById("saveModalConfirmBtn").addEventListener("click", () => {
@@ -895,7 +933,7 @@ function setup() {
   copyLinkBtn.addEventListener("click", () => {
     const url = encodeShapeToURL(getShapeParams());
     const confirm = (ok) => {
-      copyLinkBtn.textContent = ok ? "✓ Copied!" : "Copied!";
+      copyLinkBtn.textContent = ok ? "✓ Copied" : "Copied";
       copyLinkBtn.classList.add("copied");
       setTimeout(() => { copyLinkBtn.textContent = "🔗 Copy Link"; copyLinkBtn.classList.remove("copied"); }, 2000);
     };
@@ -1244,6 +1282,7 @@ function mouseDragged() {
 const ICON_ENTER = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 1,1 5,1"/><polyline points="9,1 13,1 13,5"/><polyline points="1,9 1,13 5,13"/><polyline points="9,13 13,13 13,9"/></svg>`;
 // Exit fullscreen: elbows near center, arms point outward (compress)
 const ICON_EXIT  = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,1 5,5 1,5"/><polyline points="9,1 9,5 13,5"/><polyline points="1,9 5,9 5,13"/><polyline points="13,9 9,9 9,13"/></svg>`;
+const FULLSCREEN_STATE_KEY = "hypo_fullscreen_state";
 
 document.getElementById("closeUiBtn").addEventListener("click", () => {
   document.getElementById("ui").style.display = "none";
@@ -1264,11 +1303,27 @@ function toggleFullscreen() {
 }
 
 const _fsBtn = document.getElementById("fullscreenBtn");
-_fsBtn.innerHTML = ICON_ENTER;
-_fsBtn.addEventListener("click", toggleFullscreen);
+const _libraryOverlayFsBtn = document.getElementById("libraryOverlayFsBtn");
+function updateFullscreenButtonIcon() {
+  const isFs = !!document.fullscreenElement;
+  if (_fsBtn) _fsBtn.innerHTML = isFs ? ICON_EXIT : ICON_ENTER;
+  if (_libraryOverlayFsBtn) _libraryOverlayFsBtn.innerHTML = isFs ? ICON_EXIT : ICON_ENTER;
+}
 
+function saveFullscreenState() {
+  try {
+    localStorage.setItem(FULLSCREEN_STATE_KEY, document.fullscreenElement ? "1" : "0");
+  } catch (_) {
+    // ignore storage errors
+  }
+}
+
+updateFullscreenButtonIcon();
+_fsBtn.addEventListener("click", toggleFullscreen);
+saveFullscreenState();
 document.addEventListener("fullscreenchange", () => {
-  document.getElementById("fullscreenBtn").innerHTML = document.fullscreenElement ? ICON_EXIT : ICON_ENTER;
+  updateFullscreenButtonIcon();
+  saveFullscreenState();
 });
 
 document.addEventListener("keydown", (e) => {

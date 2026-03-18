@@ -176,7 +176,7 @@
     }
     .rho-play.active {
       border-color: #3b82f6;
-      background: #1e3a8a;
+      background: rgba(30, 58, 138, 0.85);
     }
     .palette-col {
       flex: 1;
@@ -187,6 +187,10 @@
     .palette-btn {
       width: 100%;
       padding: 4px 0;
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: #222;
       color: #ccc;
       border: 1px solid #555;
@@ -194,21 +198,23 @@
       cursor: pointer;
       font-size: 12px;
     }
+    .palette-btn:hover:not(.active) { background: #333; color: #eee; }
     .palette-btn.active {
       border-color: #3b82f6;
-      background: #1e3a8a;
+      background: rgba(30, 58, 138, 0.85);
       color: #fff;
-      border-radius: 3px 3px 0 0;
+      border-radius: 3px;
     }
     .palette-rnd-btn {
       display: none;
-      width: 100%;
+      width: calc(100% - 16px);
+      margin: 0 auto;
       padding: 7px 0 3px;
       background: #2b2b2b;
       color: #aaa;
       border: 1px solid #555;
       border-top: none;
-      border-radius: 0 0 3px 3px;
+      border-radius: 0 0 6px 6px;
       cursor: pointer;
       font-size: 10px;
       line-height: 1.2;
@@ -220,7 +226,7 @@
     }
     .palette-rnd-btn:hover { background: #333; color: #eee; }
     .palette-rnd-btn.active {
-      background: #1e3a8a;
+      background: rgba(30, 58, 138, 0.85);
       border-color: #3b82f6;
       color: #fff;
     }
@@ -253,6 +259,10 @@
     #playAllBtn, #resetRhosBtn, #randomRhosBtn {
       flex: 1;
       padding: 4px 0;
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: #222;
       color: #ccc;
       border: 1px solid #555;
@@ -260,17 +270,15 @@
       cursor: pointer;
       font-size: 12px;
     }
-    #randomRhosBtn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 1.2;
-    }
+    #randomRhosBtn { line-height: 1.2; }
     #playAllBtn.active, #randomRhosBtn.active {
       border-color: #3b82f6;
-      background: #1e3a8a;
+      background: rgba(30, 58, 138, 0.85);
       color: #fff;
     }
+    #playAllBtn:hover, #resetRhosBtn:hover, #randomRhosBtn:hover { background: #333; color: #eee; }
+    #playAllBtn.active:hover { background: rgba(30, 58, 138, 0.85); color: #fff; }
+    #randomRhosBtn.active:hover { background: rgba(37, 99, 235, 0.85); }
     #sliderTooltip {
       position: fixed;
       transform: translateX(-50%);
@@ -329,21 +337,26 @@
     }
     .step-btn.active {
       border-color: #3b82f6;
-      background: #1e3a8a;
+      background: rgba(30, 58, 138, 0.85);
     }
+    .step-btn:hover:not(.active) { background: #333; color: #fff; }
     #drawBtn {
       width: 100%;
-      margin-top: 6px;
+      margin-top: 15px;
       padding: 4px 10px;
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       border-radius: 4px;
       border: none;
-      background: #3b82f6;
+      background: #22c55e;
       color: white;
-      font-size: 13px;
+      font-size: 12px;
       cursor: pointer;
     }
     #drawBtn:hover {
-      background: #2563eb;
+      background: #16a34a;
     }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button {
@@ -422,9 +435,53 @@
       background: rgba(60,60,60,0.9);
       color: #fff;
     }
+    #libraryOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      background: #000;
+      display: none;
+      pointer-events: none;
+    }
+    #libraryOverlay.visible {
+      display: block;
+      pointer-events: auto;
+    }
+    #libraryOverlay iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    #libraryOverlayFsBtn {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 501;
+      background: rgba(40,40,40,0.75);
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 6px;
+      font-size: 20px;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #libraryOverlay.visible #libraryOverlayFsBtn { display: flex; }
+    #libraryOverlayFsBtn:hover {
+      background: rgba(60,60,60,0.9);
+      color: #fff;
+    }
     #saveShapeBtn, #copyLinkBtn, #libraryBtn {
       flex: 1;
       padding: 4px 0;
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: #222;
       color: #ccc;
       border: 1px solid #555;
@@ -432,7 +489,10 @@
       cursor: pointer;
       font-size: 12px;
     }
-    #saveShapeBtn:hover, #copyLinkBtn:hover, #libraryBtn:hover { background: #333; }
+    #saveShapeBtn { background: #2563eb; color: #fff; border-color: #3b82f6; }
+    #saveShapeBtn:hover { background: #3b82f6; }
+    #saveShapeBtn.saved { background: #222; color: #ccc; border-color: #555; cursor: default; pointer-events: none; }
+    #copyLinkBtn:hover, #libraryBtn:hover { background: #333; }
     #copyLinkBtn.copied { border-color: #22c55e; color: #22c55e; }
     #saveModal {
       position: fixed;
@@ -512,7 +572,9 @@
       cursor: pointer;
       font-size: 12px;
     }
-    #saveModalBtns button:hover { background: #333; }
+    #saveModalBtns #saveModalConfirmBtn { background: #2563eb; color: #fff; border-color: #3b82f6; }
+    #saveModalBtns #saveModalConfirmBtn:hover { background: #3b82f6; }
+    #saveModalBtns #saveModalCancelBtn:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -554,15 +616,15 @@
       <div id="paletteRow" style="display:flex;gap:4px;margin-bottom:8px;">
         <div class="palette-col active">
           <button type="button" class="palette-btn active" data-mode="bounce">Bounce</button>
-          <button type="button" class="palette-rnd-btn" data-mode="bounce">Random</button>
+          <button type="button" class="palette-rnd-btn" data-mode="bounce">Shuffle</button>
         </div>
         <div class="palette-col">
           <button type="button" class="palette-btn" data-mode="rainbow">Rainbow</button>
-          <button type="button" class="palette-rnd-btn" data-mode="rainbow">Random</button>
+          <button type="button" class="palette-rnd-btn" data-mode="rainbow">Shuffle</button>
         </div>
         <div class="palette-col">
           <button type="button" class="palette-btn" data-mode="mono">Mono</button>
-          <button type="button" class="palette-rnd-btn" data-mode="mono">Random</button>
+          <button type="button" class="palette-rnd-btn" data-mode="mono">Shuffle</button>
         </div>
       </div>
       <div id="colorStepRow">
@@ -581,7 +643,7 @@
         <input id="hueSlider" type="range" min="0" max="359" step="1" value="0" />
       </div>
       <div style="display:flex;align-items:center;position:relative;margin-top:15px;margin-bottom:10px;">
-        <label style="margin:0;">Pen width:</label>
+        <label style="margin:0;">Pen width</label>
         <div id="penWidthControl" style="position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;">
           <button type="button" class="rho-speed-btn" id="penWidthMin">«</button>
           <button type="button" class="rho-speed-btn" id="penWidthDown">−</button>
@@ -591,7 +653,7 @@
         </div>
       </div>
       <div style="display:flex;align-items:center;position:relative;margin-bottom:10px;">
-        <label style="margin:0;">Opacity:</label>
+        <label style="margin:0;">Opacity</label>
         <div id="opacityControl" style="position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;">
           <button type="button" class="rho-speed-btn" id="opacityMin">«</button>
           <button type="button" class="rho-speed-btn" id="opacityDown">−</button>
@@ -602,8 +664,8 @@
       </div>
       <button id="drawBtn">Draw</button>
       <div style="display:flex;gap:4px;margin-top:6px;">
-        <button type="button" id="saveShapeBtn">↓ Save</button>
-        <button type="button" id="copyLinkBtn">Copy Link</button>
+        <button type="button" id="saveShapeBtn">Save</button>
+        <button type="button" id="copyLinkBtn">🔗 Copy Link</button>
         <button type="button" id="libraryBtn">Library</button>
       </div>
       <div id="hint">
@@ -612,6 +674,10 @@
     </div>
 
   <button id="fullscreenBtn" title="Toggle fullscreen" tabindex="-1"></button>
+  <div id="libraryOverlay">
+    <iframe src="about:blank" title="Library" allow="fullscreen"></iframe>
+    <button id="libraryOverlayFsBtn" title="Toggle fullscreen" tabindex="-1"></button>
+  </div>
   <div id="saveModal" role="dialog" aria-modal="true" aria-labelledby="saveModalTitle">
     <div id="saveModalCard">
       <div id="saveModalTitle">Save project</div>
@@ -623,8 +689,8 @@
         </div>
       </div>
       <div id="saveModalBtns">
-        <button type="button" id="saveModalCancelBtn">Cancel</button>
         <button type="button" id="saveModalConfirmBtn">Save</button>
+        <button type="button" id="saveModalCancelBtn">Cancel</button>
       </div>
     </div>
   </div>
