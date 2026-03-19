@@ -31,6 +31,14 @@ let penWidth = 1;
 const OPACITY_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
 let lineOpacity = 1;
 
+let animMode = false;
+let animSegmentsRevealed = 0;
+let animPlaying = false;
+let animSpeedMult = 1;
+let animFrameId = null;
+let animLastTime = null;
+const ANIM_SEGMENTS_PER_SECOND = 25;
+
 // Rainbow: 6 phases of 255 steps each, only one component changes by 1 per step
 function rainbowColor(pos) {
   pos = ((pos % 1530) + 1530) % 1530;
@@ -875,6 +883,115 @@ function setup() {
     computeFromUI(randomColorActive && colorMode === "bounce", false, true);
   });
 
+  const uiMain = document.getElementById("uiMain");
+  const uiAnim = document.getElementById("uiAnim");
+  const animSpeedValue = document.getElementById("animSpeedValue");
+  const animPlayBtn = document.getElementById("animPlayBtn");
+  const animBackBtn = document.getElementById("animBackBtn");
+  const animSpeedDown = document.getElementById("animSpeedDown");
+  const animSpeedUp = document.getElementById("animSpeedUp");
+
+  document.getElementById("animateBtn").addEventListener("click", () => {
+    if (randomRhosActive) {
+      for (const state of rhoAnimStates) {
+        if (!state) continue;
+        const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+        state.slider.value = String(v);
+        state.animValue = null;
+        state.dir = Math.random() < 0.5 ? 1 : -1;
+      }
+    }
+    if (randomColorActive) {
+      randomizeColors();
+    }
+    computeFromUI(randomColorActive && colorMode === "bounce", false, true);
+    animMode = true;
+    animSegmentsRevealed = 0;
+    animPlaying = false;
+    if (animFrameId !== null) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    uiMain.style.display = "none";
+    uiAnim.style.display = "";
+    if (animSpeedValue) animSpeedValue.textContent = String(Number(animSpeedMult)) + "x";
+    if (animPlayBtn) animPlayBtn.textContent = "▶ Play";
+    redraw();
+  });
+
+  if (animBackBtn) {
+    animBackBtn.addEventListener("click", () => {
+      animMode = false;
+      animPlaying = false;
+      animSegmentsRevealed = 0;
+      if (animFrameId !== null) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+      uiMain.style.display = "";
+      uiAnim.style.display = "none";
+      redraw();
+    });
+  }
+
+  function updateAnimSpeedDisplay() {
+    if (animSpeedValue) animSpeedValue.textContent = String(Number(animSpeedMult)) + "x";
+  }
+  if (animSpeedDown) {
+    animSpeedDown.addEventListener("click", () => {
+      const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(animSpeedMult));
+      animSpeedMult = RHO_SPEED_VALUES[Math.max(0, i - 1)];
+      updateAnimSpeedDisplay();
+    });
+  }
+  if (animSpeedUp) {
+    animSpeedUp.addEventListener("click", () => {
+      const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(animSpeedMult));
+      animSpeedMult = RHO_SPEED_VALUES[Math.min(RHO_SPEED_VALUES.length - 1, i + 1)];
+      updateAnimSpeedDisplay();
+    });
+  }
+
+  function animStep(timestamp) {
+    const dt = animLastTime != null ? (timestamp - animLastTime) / 1000 : 0;
+    animLastTime = timestamp;
+    const total = segmentsData.length;
+    const mult = roundSpeedMult(animSpeedMult);
+    animSegmentsRevealed += ANIM_SEGMENTS_PER_SECOND * mult * dt;
+    if (animSegmentsRevealed >= total) {
+      animSegmentsRevealed = total;
+      animPlaying = false;
+      animFrameId = null;
+      animLastTime = null;
+      if (animPlayBtn) animPlayBtn.textContent = "▶ Play";
+      loop();
+    }
+    redraw();
+    if (animPlaying) animFrameId = requestAnimationFrame(animStep);
+  }
+
+  if (animPlayBtn) {
+    animPlayBtn.addEventListener("click", () => {
+      if (animPlaying) {
+        animPlaying = false;
+        if (animFrameId !== null) {
+          cancelAnimationFrame(animFrameId);
+          animFrameId = null;
+        }
+        animPlayBtn.textContent = "▶ Play";
+        loop();
+      } else {
+        const total = segmentsData.length;
+        if (animSegmentsRevealed >= total) animSegmentsRevealed = 0;
+        animPlaying = true;
+        animPlayBtn.textContent = "⏸ Pause";
+        noLoop();
+        animLastTime = null;
+        animFrameId = requestAnimationFrame(animStep);
+      }
+    });
+  }
+
   const stepButtons = document.querySelectorAll(".step-btn");
   stepButtons.forEach(btn => {
     const val = parseInt(btn.dataset.step, 10);
@@ -1227,7 +1344,10 @@ function draw() {
     strokeWeight(penWidth);
   }
 
-  for (const seg of segmentsData) {
+  const maxSeg = animMode ? Math.floor(animSegmentsRevealed) : segmentsData.length;
+  for (let si = 0; si < maxSeg; si++) {
+    const seg = segmentsData[si];
+    if (!seg) continue;
     const [r, g, b] = seg.color;
     stroke(r, g, b, Math.round(lineOpacity * 255));
     beginShape();
@@ -1235,6 +1355,20 @@ function draw() {
       vertex(seg.xs[i], seg.ys[i]);
     }
     endShape();
+  }
+  const frac = animMode ? animSegmentsRevealed - maxSeg : 0;
+  if (frac > 0 && maxSeg < segmentsData.length) {
+    const seg = segmentsData[maxSeg];
+    if (seg) {
+      const [r, g, b] = seg.color;
+      stroke(r, g, b, Math.round(lineOpacity * 255));
+      beginShape();
+      const n = Math.floor(frac * seg.xs.length);
+      for (let i = 0; i <= n; i++) {
+        vertex(seg.xs[i], seg.ys[i]);
+      }
+      endShape();
+    }
   }
 }
 
