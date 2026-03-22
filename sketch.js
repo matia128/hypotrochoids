@@ -54,6 +54,28 @@ function rainbowColor(pos) {
   }
 }
 
+const COLOR_STEP_SLIDER_MAX = 1000;
+
+/** Slider position 0..COLOR_STEP_SLIDER_MAX maps log-uniformly to color step 1..1000 (10 and 100 at 1/3 and 2/3). */
+function colorStepFromSliderPos(pos) {
+  const p = Math.min(COLOR_STEP_SLIDER_MAX, Math.max(0, Number(pos)));
+  const v = Math.round(Math.pow(10, (3 * p) / COLOR_STEP_SLIDER_MAX));
+  return Math.min(1000, Math.max(1, v));
+}
+
+function sliderPosFromColorStep(step) {
+  const s = Math.min(1000, Math.max(1, Math.round(Number(step))));
+  if (s <= 1) return 0;
+  return Math.round((Math.log10(s) / 3) * COLOR_STEP_SLIDER_MAX);
+}
+
+/** Snap slider to the canonical position for its integer color step (whole steps only). */
+function snapColorStepSlider(slider) {
+  const v = colorStepFromSliderPos(slider.value);
+  slider.value = String(sliderPosFromColorStep(v));
+  return v;
+}
+
 function hslToRgb(h, s, l) {
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs((h / 60) % 2 - 1));
@@ -237,6 +259,23 @@ function roundSpeedMult(v) {
   return best;
 }
 
+/** Segment animation only (Animate panel); ρ slider speeds still use RHO_SPEED_VALUES. */
+const ANIM_SPEED_VALUES = [0.05, 0.1, 0.15, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3.5, 5, 7.5, 10, 15, 20];
+
+function roundAnimSpeedMult(v) {
+  let best = ANIM_SPEED_VALUES[0];
+  for (const x of ANIM_SPEED_VALUES) {
+    if (Math.abs(x - v) < Math.abs(best - v)) best = x;
+  }
+  return best;
+}
+
+function formatAnimSpeedLabel(v) {
+  const n = roundAnimSpeedMult(Number(v));
+  const clean = parseFloat(n.toFixed(6));
+  return String(clean) + "x";
+}
+
 function createRhoSpeedControl(state) {
   state.speedMultiplier = roundSpeedMult(state.speedMultiplier ?? 1);
   const wrap = document.createElement("div");
@@ -365,7 +404,7 @@ function getShapeParams() {
     rhos,
     step: currentStep,
     colorMode,
-    colorStep: parseInt(colorStepEl ? colorStepEl.value : "50"),
+    colorStep: colorStepFromSliderPos(colorStepEl ? colorStepEl.value : "566"),
     monoHue,
     penWidth,
     opacity: lineOpacity,
@@ -416,11 +455,13 @@ function applyShapeParams(params) {
   if (colorStepRow) colorStepRow.style.display = colorMode === 'mono' ? "none" : "";
   if (hueRow) hueRow.style.display = colorMode === 'mono' ? "" : "none";
 
-  const colorStep = params.colorStep || 50;
+  let colorStep = params.colorStep;
+  if (!Number.isFinite(colorStep) || colorStep < 1) colorStep = 50;
+  colorStep = Math.min(1000, Math.max(1, Math.round(colorStep)));
   const cs = document.getElementById("colorStep");
   const csv = document.getElementById("colorStepVal");
-  if (cs) cs.value = colorStep;
-  if (csv) csv.value = colorStep;
+  if (cs) cs.value = String(sliderPosFromColorStep(colorStep));
+  if (csv) csv.value = String(colorStep);
 
   monoHue = params.monoHue || 0;
   const hueSlider = document.getElementById("hueSlider");
@@ -630,7 +671,7 @@ function loadFromURL() {
     rhos: (p.get('rhos') || '').split(',').map(Number).filter(isFinite),
     step: parseInt(p.get('step')) || 4,
     colorMode: p.get('cm') || 'bounce',
-    colorStep: parseInt(p.get('cs')) || 50,
+    colorStep: Math.min(1000, Math.max(1, parseInt(p.get('cs'), 10) || 50)),
     monoHue: parseInt(p.get('hue')) || 0,
     penWidth: parseFloat(p.get('pw')) || 1,
     opacity: parseFloat(p.get('op')) || 1,
@@ -798,12 +839,20 @@ function setup() {
   const colorStepVal = document.getElementById("colorStepVal");
   if (colorStepSlider && colorStepVal) {
     colorStepSlider.addEventListener("input", () => {
-      colorStepVal.value = colorStepSlider.value;
+      const v = snapColorStepSlider(colorStepSlider);
+      colorStepVal.value = String(v);
       computeFromUI(false, false, true, true);
     });
     colorStepVal.addEventListener("input", () => {
-      const v = Math.min(200, Math.max(1, parseInt(colorStepVal.value, 10) || 1));
-      colorStepSlider.value = v;
+      const v = Math.min(1000, Math.max(1, parseInt(colorStepVal.value, 10) || 1));
+      colorStepVal.value = String(v);
+      colorStepSlider.value = String(sliderPosFromColorStep(v));
+      computeFromUI(false, false, true, true);
+    });
+    colorStepVal.addEventListener("change", () => {
+      const v = Math.min(1000, Math.max(1, parseInt(colorStepVal.value, 10) || 1));
+      colorStepVal.value = String(v);
+      colorStepSlider.value = String(sliderPosFromColorStep(v));
       computeFromUI(false, false, true, true);
     });
   }
@@ -887,47 +936,48 @@ function setup() {
   const uiAnim = document.getElementById("uiAnim");
   const animSpeedValue = document.getElementById("animSpeedValue");
   const animPlayBtn = document.getElementById("animPlayBtn");
+  const animResetBtn = document.getElementById("animResetBtn");
   const animBackBtn = document.getElementById("animBackBtn");
   const animSpeedDown = document.getElementById("animSpeedDown");
   const animSpeedUp = document.getElementById("animSpeedUp");
 
-  document.getElementById("animateBtn").addEventListener("click", () => {
-    if (randomRhosActive) {
-      for (const state of rhoAnimStates) {
-        if (!state) continue;
-        const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
-        state.slider.value = String(v);
-        state.animValue = null;
-        state.dir = Math.random() < 0.5 ? 1 : -1;
-      }
-    }
-    if (randomColorActive) {
-      randomizeColors();
-    }
-    computeFromUI(randomColorActive && colorMode === "bounce", false, true);
-    animMode = true;
-    animSegmentsRevealed = 0;
+  function stopAnimPlayback() {
     animPlaying = false;
     if (animFrameId !== null) {
       cancelAnimationFrame(animFrameId);
       animFrameId = null;
     }
+    animLastTime = null;
+    if (animPlayBtn) animPlayBtn.textContent = "Animate";
+    loop();
+  }
+
+  document.getElementById("animateBtn").addEventListener("click", () => {
+    // Same as Draw: do not re-randomize ρ or palette here — preserve the curve and colors on screen
+    computeFromUI(false, false, true);
+    animMode = true;
+    animSegmentsRevealed = segmentsData.length;
+    stopAnimPlayback();
     uiMain.style.display = "none";
     uiAnim.style.display = "";
-    if (animSpeedValue) animSpeedValue.textContent = String(Number(animSpeedMult)) + "x";
-    if (animPlayBtn) animPlayBtn.textContent = "▶ Play";
+    animSpeedMult = roundAnimSpeedMult(animSpeedMult);
+    if (animSpeedValue) animSpeedValue.textContent = formatAnimSpeedLabel(animSpeedMult);
     redraw();
   });
+
+  if (animResetBtn) {
+    animResetBtn.addEventListener("click", () => {
+      if (animPlaying) stopAnimPlayback();
+      animSegmentsRevealed = 0;
+      redraw();
+    });
+  }
 
   if (animBackBtn) {
     animBackBtn.addEventListener("click", () => {
       animMode = false;
-      animPlaying = false;
       animSegmentsRevealed = 0;
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
+      stopAnimPlayback();
       uiMain.style.display = "";
       uiAnim.style.display = "none";
       redraw();
@@ -935,35 +985,34 @@ function setup() {
   }
 
   function updateAnimSpeedDisplay() {
-    if (animSpeedValue) animSpeedValue.textContent = String(Number(animSpeedMult)) + "x";
+    if (animSpeedValue) animSpeedValue.textContent = formatAnimSpeedLabel(animSpeedMult);
   }
   if (animSpeedDown) {
     animSpeedDown.addEventListener("click", () => {
-      const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(animSpeedMult));
-      animSpeedMult = RHO_SPEED_VALUES[Math.max(0, i - 1)];
+      const i = ANIM_SPEED_VALUES.indexOf(roundAnimSpeedMult(animSpeedMult));
+      animSpeedMult = ANIM_SPEED_VALUES[Math.max(0, i - 1)];
       updateAnimSpeedDisplay();
     });
   }
   if (animSpeedUp) {
     animSpeedUp.addEventListener("click", () => {
-      const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(animSpeedMult));
-      animSpeedMult = RHO_SPEED_VALUES[Math.min(RHO_SPEED_VALUES.length - 1, i + 1)];
+      const i = ANIM_SPEED_VALUES.indexOf(roundAnimSpeedMult(animSpeedMult));
+      animSpeedMult = ANIM_SPEED_VALUES[Math.min(ANIM_SPEED_VALUES.length - 1, i + 1)];
       updateAnimSpeedDisplay();
     });
   }
-
   function animStep(timestamp) {
     const dt = animLastTime != null ? (timestamp - animLastTime) / 1000 : 0;
     animLastTime = timestamp;
     const total = segmentsData.length;
-    const mult = roundSpeedMult(animSpeedMult);
+    const mult = roundAnimSpeedMult(animSpeedMult);
     animSegmentsRevealed += ANIM_SEGMENTS_PER_SECOND * mult * dt;
     if (animSegmentsRevealed >= total) {
       animSegmentsRevealed = total;
       animPlaying = false;
       animFrameId = null;
       animLastTime = null;
-      if (animPlayBtn) animPlayBtn.textContent = "▶ Play";
+      if (animPlayBtn) animPlayBtn.textContent = "Animate";
       loop();
     }
     redraw();
@@ -973,18 +1022,12 @@ function setup() {
   if (animPlayBtn) {
     animPlayBtn.addEventListener("click", () => {
       if (animPlaying) {
-        animPlaying = false;
-        if (animFrameId !== null) {
-          cancelAnimationFrame(animFrameId);
-          animFrameId = null;
-        }
-        animPlayBtn.textContent = "▶ Play";
-        loop();
+        stopAnimPlayback();
       } else {
         const total = segmentsData.length;
         if (animSegmentsRevealed >= total) animSegmentsRevealed = 0;
         animPlaying = true;
-        animPlayBtn.textContent = "⏸ Pause";
+        animPlayBtn.textContent = "Stop animation";
         noLoop();
         animLastTime = null;
         animFrameId = requestAnimationFrame(animStep);
@@ -1074,6 +1117,9 @@ function setup() {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+  // Keep baseScale in sync with the new canvas size (otherwise the next computeFromUI — e.g. when ρ Play runs — jumps the fit/zoom)
+  computeFromUI(false, false, true);
+  redraw();
 }
 
 function parseFrequency(str) {
@@ -1119,13 +1165,16 @@ function lcm(a, b) {
 }
 
 function computeFromUI(resetColors = false, resetView = false, snapRhosValues = true, preserveRhos = false) {
+  if (animMode && resetColors) {
+    resetColors = false;
+  }
   const input = document.getElementById("freqs");
   const parts = input.value.split(/[, ]+/).filter(Boolean);
   const parsed = parts.map(parseFrequency).filter(f => f !== null);
   let step = currentStep || 4;
   const colorStepInput = document.getElementById("colorStep");
-  let colorStep = parseInt(colorStepInput ? colorStepInput.value : "50", 10);
-  if (!Number.isFinite(colorStep) || colorStep <= 0) {
+  let colorStep = colorStepFromSliderPos(colorStepInput ? colorStepInput.value : "566");
+  if (!Number.isFinite(colorStep) || colorStep < 1) {
     colorStep = 50;
   }
 
@@ -1490,6 +1539,9 @@ function keyPressed() {
     offsetY = 0;
     return false;
   } else if (keyCode === ENTER) {
+    if (animMode) {
+      return false;
+    }
     if (randomRhosActive) {
       for (const state of rhoAnimStates) {
         if (!state) continue;

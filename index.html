@@ -101,6 +101,35 @@
       border: 1px solid #666;
       cursor: pointer;
     }
+    #colorStep::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #eee;
+      border: 1px solid #666;
+      cursor: pointer;
+    }
+    .color-step-wrap {
+      width: 100%;
+      flex: 1;
+      min-width: 0;
+    }
+    .color-step-labels {
+      position: relative;
+      height: 14px;
+      margin-top: 4px;
+      font-size: 11px;
+      color: #aaa;
+    }
+    .color-step-labels span {
+      position: absolute;
+      transform: translateX(-50%);
+    }
+    /* Thumb centers align with ρ-slider tick formula (10px thumb) */
+    .color-step-labels .cst0 { left: calc(0% + 6px); }
+    .color-step-labels .cst1 { left: calc(33.333333% + 1.667px); }
+    .color-step-labels .cst2 { left: calc(66.666666% - 1.666px); }
+    .color-step-labels .cst3 { left: calc(100% - 5px); }
     .rho-row {
       margin-bottom: 12px;
       width: 100%;
@@ -175,8 +204,8 @@
       margin-left: 4px;
     }
     .rho-play.active {
-      border-color: #3b82f6;
-      background: rgba(30, 58, 138, 0.85);
+      border-color: rgba(96, 165, 250, 0.5);
+      background: rgba(59, 130, 246, 0.46);
     }
     .palette-col {
       flex: 1;
@@ -200,8 +229,8 @@
     }
     .palette-btn:hover:not(.active) { background: #333; color: #eee; }
     .palette-btn.active {
-      border-color: #3b82f6;
-      background: rgba(30, 58, 138, 0.85);
+      border-color: rgba(96, 165, 250, 0.5);
+      background: rgba(59, 130, 246, 0.46);
       color: #fff;
       border-radius: 3px;
     }
@@ -210,7 +239,7 @@
       width: calc(100% - 16px);
       margin: 0 auto;
       padding: 7px 0 3px;
-      background: #2b2b2b;
+      background: #222;
       color: #aaa;
       border: 1px solid #555;
       border-top: none;
@@ -226,9 +255,12 @@
     }
     .palette-rnd-btn:hover { background: #333; color: #eee; }
     .palette-rnd-btn.active {
-      background: rgba(30, 58, 138, 0.85);
-      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.46);
+      border-color: rgba(96, 165, 250, 0.5);
       color: #fff;
+    }
+    .palette-rnd-btn.active:hover {
+      background: rgba(96, 165, 250, 0.56);
     }
     #hueSlider {
       display: block;
@@ -272,13 +304,13 @@
     }
     #randomRhosBtn { line-height: 1.2; }
     #playAllBtn.active, #randomRhosBtn.active {
-      border-color: #3b82f6;
-      background: rgba(30, 58, 138, 0.85);
+      border-color: rgba(96, 165, 250, 0.5);
+      background: rgba(59, 130, 246, 0.46);
       color: #fff;
     }
     #playAllBtn:hover, #resetRhosBtn:hover, #randomRhosBtn:hover { background: #333; color: #eee; }
-    #playAllBtn.active:hover { background: rgba(30, 58, 138, 0.85); color: #fff; }
-    #randomRhosBtn.active:hover { background: rgba(37, 99, 235, 0.85); }
+    #playAllBtn.active:hover { background: rgba(96, 165, 250, 0.56); color: #fff; }
+    #randomRhosBtn.active:hover { background: rgba(96, 165, 250, 0.56); }
     #sliderTooltip {
       position: fixed;
       transform: translateX(-50%);
@@ -336,13 +368,12 @@
       cursor: pointer;
     }
     .step-btn.active {
-      border-color: #3b82f6;
-      background: rgba(30, 58, 138, 0.85);
+      border-color: rgba(96, 165, 250, 0.5);
+      background: rgba(59, 130, 246, 0.46);
     }
     .step-btn:hover:not(.active) { background: #333; color: #fff; }
-    #drawBtn {
+    #drawBtn, #animPlayBtn {
       width: 100%;
-      margin-top: 15px;
       padding: 4px 10px;
       min-height: 26px;
       display: flex;
@@ -355,7 +386,49 @@
       font-size: 12px;
       cursor: pointer;
     }
-    #drawBtn:hover {
+    #drawBtn {
+      margin-top: 15px;
+    }
+    #animPlayResetRow {
+      display: flex;
+      gap: 4px;
+      margin-top: 15px;
+    }
+    #animPlayResetRow #animPlayBtn {
+      flex: 1;
+      min-width: 0;
+      width: auto;
+      margin-top: 0;
+    }
+    #animResetBtn {
+      padding: 4px 10px;
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      background: #222;
+      color: #ccc;
+      border: 1px solid #555;
+      font-size: 12px;
+      cursor: pointer;
+      width: calc((100% - 8px) / 3);
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    #animResetBtn:hover {
+      background: #333;
+    }
+    #animSpeedControl {
+      position: absolute;
+      right: calc((100% - 8px) / 3 + 4px);
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    #animSpeedControl .rho-speed-row {
+      gap: 8px;
+    }
+    #drawBtn:hover, #animPlayBtn:hover {
       background: #00aeff;
     }
     #animateBtn {
@@ -506,7 +579,7 @@
       font-size: 12px;
     }
     #saveShapeBtn { background: #003097; color: #fff; border-color: #042366; }
-    #saveShapeBtn:hover { background: #3b82f6; }
+    #saveShapeBtn:hover { background: #0d40a5; border-color: #0a3588; }
     #saveShapeBtn.saved { background: #222; color: #ccc; border-color: #555; cursor: default; pointer-events: none; }
     #copyLinkBtn:hover, #libraryBtn:hover { background: #333; }
     #copyLinkBtn.copied { border-color: #22c55e; color: #22c55e; }
@@ -647,12 +720,18 @@
       <div id="colorStepRow">
         <div style="display:flex;align-items:center;gap:6px;margin-top:15px;margin-bottom:10px;">
           <label for="colorStepVal" style="margin:0;">Color step:</label>
-          <input id="colorStepVal" type="number" min="1" max="200" step="1" value="50" style="width:3ch;padding:2px 4px;background:#111;color:#eee;border:1px solid #555;border-radius:3px;font-size:12px;outline:none;" />
+          <input id="colorStepVal" type="number" min="1" max="1000" step="1" value="50" style="width:4ch;padding:2px 4px;background:#111;color:#eee;border:1px solid #555;border-radius:3px;font-size:12px;outline:none;text-align:right;" />
         </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-          <span style="font-size:11px;color:#aaa;flex-shrink:0;">1</span>
-          <input id="colorStep" type="range" min="1" max="200" step="1" value="50" style="flex:1;margin:0;" />
-          <span style="font-size:11px;color:#aaa;flex-shrink:0;">200</span>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;width:100%;box-sizing:border-box;">
+          <div class="color-step-wrap">
+            <input id="colorStep" type="range" min="0" max="1000" step="1" value="566" style="width:100%;margin:0;" />
+            <div class="color-step-labels" aria-hidden="true">
+              <span class="cst0">1</span>
+              <span class="cst1">10</span>
+              <span class="cst2">100</span>
+              <span class="cst3">1000</span>
+            </div>
+          </div>
         </div>
       </div>
       <div id="hueRow" style="display:none;margin-bottom:8px;">
@@ -693,13 +772,20 @@
       </div>
       </div>
       <div id="uiAnim" style="display:none;">
-        <label style="margin-top:5px;">Animation speed</label>
-        <div class="rho-speed-row" style="margin-top:8px;margin-bottom:8px;">
-          <button type="button" class="rho-speed-btn" id="animSpeedDown">«</button>
-          <span id="animSpeedValue" class="rho-speed-value">1x</span>
-          <button type="button" class="rho-speed-btn" id="animSpeedUp">»</button>
+        <div style="display:flex;align-items:center;position:relative;margin-top:5px;margin-bottom:10px;">
+          <label style="margin:0;">Animation speed</label>
+          <div id="animSpeedControl" class="rho-speed">
+            <div class="rho-speed-row">
+              <button type="button" class="rho-speed-btn" id="animSpeedDown">«</button>
+              <span id="animSpeedValue" class="rho-speed-value">1x</span>
+              <button type="button" class="rho-speed-btn" id="animSpeedUp">»</button>
+            </div>
+          </div>
         </div>
-        <button type="button" id="animPlayBtn" class="rho-play" style="width:100%;margin-top:8px;padding:6px;">▶ Play</button>
+        <div id="animPlayResetRow">
+          <button type="button" id="animPlayBtn">Animate</button>
+          <button type="button" id="animResetBtn">Reset</button>
+        </div>
         <button type="button" id="animBackBtn" style="width:100%;margin-top:8px;padding:6px;background:#222;color:#ccc;border:1px solid #555;border-radius:4px;cursor:pointer;font-size:12px;">← Back</button>
       </div>
     </div>
