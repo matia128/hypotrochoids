@@ -553,6 +553,7 @@ function renderLibrary() {
 
     const nameInput = document.createElement("input");
     nameInput.type = "text";
+    nameInput.autocomplete = "off";
     nameInput.className = "library-name";
     nameInput.value = entry.name;
     nameInput.addEventListener("change", () => {
@@ -1421,6 +1422,25 @@ function draw() {
   }
 }
 
+/** Zoom in or out around the canvas center (same math as wheel zoom with the cursor at the center). */
+function zoomAtScreenCenter(zoomIn, isKeyRepeat = false) {
+  const mouseRelX = 0;
+  const mouseRelY = 0;
+  const worldX = (mouseRelX - offsetX) / zoomLevel;
+  const worldY = (mouseRelY - offsetY) / zoomLevel;
+  const multIn = isKeyRepeat ? 1.01 : 1.05;
+  const multOut = isKeyRepeat ? 0.99 : 0.95;
+  if (zoomIn) {
+    zoomLevel *= multIn;
+  } else {
+    zoomLevel *= multOut;
+  }
+  offsetX = mouseRelX - worldX * zoomLevel;
+  offsetY = mouseRelY - worldY * zoomLevel;
+  markShapeChanged();
+  redraw();
+}
+
 function mouseWheel(event) {
   const ui = document.getElementById("ui");
   if (ui && ui.style.display !== "none") {
@@ -1521,6 +1541,26 @@ document.addEventListener("keydown", (e) => {
   }
   const tag = document.activeElement && document.activeElement.tagName;
   const isTyping = tag === "INPUT" || tag === "TEXTAREA";
+  if (!isTyping) {
+    const zoomInKey =
+      e.key === "+" ||
+      e.code === "NumpadAdd" ||
+      (e.code === "Equal" && e.shiftKey);
+    const zoomOutKey =
+      e.key === "-" ||
+      e.code === "NumpadSubtract" ||
+      e.code === "Minus";
+    if (zoomInKey) {
+      e.preventDefault();
+      zoomAtScreenCenter(true, e.repeat);
+      return;
+    }
+    if (zoomOutKey) {
+      e.preventDefault();
+      zoomAtScreenCenter(false, e.repeat);
+      return;
+    }
+  }
   if (e.key === "f" && !isTyping) {
     e.preventDefault();
     toggleFullscreen();
