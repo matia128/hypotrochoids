@@ -26,6 +26,7 @@ let monoHue = 0;
 let rainbowOffset = 0;
 let lastSavedShapeKey = null;
 let pendingSaveSnapshot = null;
+let captureTargetEntryId = null;
 const PEN_WIDTH_VALUES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4];
 let penWidth = 1;
 const OPACITY_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
@@ -517,6 +518,51 @@ function captureThumbnail() {
   return thumb.toDataURL('image/jpeg', 0.75);
 }
 
+/** 16:9 crop, up to 4K, WebP or high-Q JPEG — library gallery (thumbnails use captureThumbnail). */
+function captureGalleryPhoto() {
+  const src = document.querySelector('canvas');
+  if (!src) return null;
+  const srcW = src.width;
+  const srcH = src.height;
+  const targetAspect = 16 / 9;
+  const srcAspect = srcW / srcH;
+  let sx = 0, sy = 0, sW = srcW, sH = srcH;
+  if (srcAspect > targetAspect) {
+    sW = srcH * targetAspect;
+    sx = (srcW - sW) / 2;
+  } else if (srcAspect < targetAspect) {
+    sH = srcW / targetAspect;
+    sy = (srcH - sH) / 2;
+  }
+  let outW = sW;
+  let outH = sH;
+  const MAX_W = 3840;
+  const MAX_H = 2160;
+  if (outW > MAX_W || outH > MAX_H) {
+    const scale = Math.min(MAX_W / outW, MAX_H / outH);
+    outW = Math.max(1, Math.round(outW * scale));
+    outH = Math.max(1, Math.round(outH * scale));
+  }
+  const c = document.createElement('canvas');
+  c.width = outW;
+  c.height = outH;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, sx, sy, sW, sH, 0, 0, outW, outH);
+  try {
+    const webp = c.toDataURL('image/webp', 0.98);
+    if (webp.startsWith('data:image/webp')) return webp;
+  } catch (_) { /* encode unsupported */ }
+  return c.toDataURL('image/jpeg', 0.98);
+}
+
+function applyCanvasPixelDensity() {
+  const dpr = typeof window !== 'undefined' && window.devicePixelRatio ? window.devicePixelRatio : 1;
+  const d = Math.min(2, Math.max(1, Math.ceil(dpr)));
+  pixelDensity(d);
+}
+
 function getLibrary() {
   try { return JSON.parse(localStorage.getItem('hypo_library') || '[]'); }
   catch { return []; }
@@ -524,6 +570,27 @@ function getLibrary() {
 
 function saveLibrary(lib) {
   localStorage.setItem('hypo_library', JSON.stringify(lib));
+}
+
+function addPhotoToLibraryEntry(entryId, dataUrl) {
+  const lib = getLibrary();
+  const e = lib.find(x => x.id === entryId);
+  if (!e || !dataUrl) return false;
+  if (!e.gallery) e.gallery = [];
+  e.gallery.unshift({
+    id: Date.now().toString(),
+    image: dataUrl,
+    createdAt: new Date().toISOString(),
+  });
+  saveLibrary(lib);
+  return true;
+}
+
+function setCapturePanelVisible(show, entryId) {
+  captureTargetEntryId = show ? entryId : null;
+  const panel = document.getElementById("capturePanel");
+  if (!panel) return;
+  panel.classList.toggle("visible", !!show);
 }
 
 function renderLibrary() {
@@ -664,9 +731,15 @@ function encodeShapeToURL(params) {
 
 function loadFromURL() {
   const hash = location.hash.slice(1);
-  if (!hash) return;
+  if (!hash) {
+    setCapturePanelVisible(false);
+    return;
+  }
   const p = new URLSearchParams(hash);
-  if (!p.has('freqs')) return;
+  if (!p.has('freqs')) {
+    setCapturePanelVisible(false);
+    return;
+  }
   applyShapeParams({
     freqs: p.get('freqs') || '',
     rhos: (p.get('rhos') || '').split(',').map(Number).filter(isFinite),
@@ -691,6 +764,11 @@ function loadFromURL() {
       initialized: p.get('ci') === '1',
     },
   });
+  const lid = p.get("lid");
+  const capOn = p.get("cap") === "1";
+  if (capOn && lid) setCapturePanelVisible(true, lid);
+  else setCapturePanelVisible(false);
+  redraw();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -698,7 +776,7 @@ function loadFromURL() {
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
   canvas.parent(document.body);
-  pixelDensity(1);
+  applyCanvasPixelDensity();
   noFill();
   strokeCap(SQUARE);
   computeFromUI(true, true, true);
@@ -1058,6 +1136,19 @@ function setup() {
       libraryOverlay.classList.add("visible");
     }
   });
+  const capturePhotoBtn = document.getElementById("capturePhotoBtn");
+  if (capturePhotoBtn) {
+    capturePhotoBtn.addEventListener("click", () => {
+      if (!captureTargetEntryId) return;
+      const url = captureGalleryPhoto();
+      if (!url) return;
+      if (addPhotoToLibraryEntry(captureTargetEntryId, url)) {
+        const t = capturePhotoBtn.textContent;
+        capturePhotoBtn.textContent = "Saved";
+        setTimeout(() => { capturePhotoBtn.textContent = t; }, 1200);
+      }
+    });
+  }
   const libraryOverlayFsBtn = document.getElementById("libraryOverlayFsBtn");
   if (libraryOverlayFsBtn) {
     libraryOverlayFsBtn.addEventListener("click", () => toggleFullscreen());
@@ -1073,10 +1164,19 @@ function setup() {
         if (libraryIframe) libraryIframe.src = "about:blank";
         document.getElementById("fullscreenBtn")?.focus();
       }
-      location.hash = e.data.hash;
-      loadFromURL();
+      let h = e.data.hash;
+      if (e.data.capture && e.data.entryId) {
+        const hp = new URLSearchParams(h);
+        hp.set("lid", e.data.entryId);
+        hp.set("cap", "1");
+        h = hp.toString();
+      }
+      const prev = location.hash;
+      location.hash = h;
+      if (location.hash === prev) loadFromURL();
     }
   });
+  window.addEventListener("hashchange", loadFromURL);
   document.getElementById("saveModalCancelBtn").addEventListener("click", closeSaveModal);
   document.getElementById("saveModalConfirmBtn").addEventListener("click", () => {
     saveShape();
@@ -1118,6 +1218,7 @@ function setup() {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+  applyCanvasPixelDensity();
   // Keep baseScale in sync with the new canvas size (otherwise the next computeFromUI — e.g. when ρ Play runs — jumps the fit/zoom)
   computeFromUI(false, false, true);
   redraw();

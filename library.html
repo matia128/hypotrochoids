@@ -65,6 +65,29 @@
     #backBtn:hover {
       color: #fff;
     }
+    .lib-tabs {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+    .lib-tab {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      font-size: 20px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #888;
+    }
+    .lib-tab:hover {
+      color: #bbb;
+    }
+    .lib-tab.active {
+      color: #eee;
+    }
     .hint {
       color: #aaa;
       font-size: 12px;
@@ -83,6 +106,23 @@
       padding: 16px;
       text-align: center;
     }
+    #galleryGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .gallery-item {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(20, 20, 20, 0.9);
+    }
+    .gallery-item img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      display: block;
+    }
     .card {
       position: relative;
       border: 1px solid rgba(255, 255, 255, 0.15);
@@ -90,7 +130,7 @@
       background: rgba(40, 40, 40, 0.75);
       backdrop-filter: blur(6px);
       padding: 8px;
-      padding-bottom: 32px;
+      padding-bottom: 40px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -122,21 +162,34 @@
     .meta {
       min-width: 0;
       flex: 1;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: auto auto auto 1fr;
+      gap: 4px;
       padding: 2px 0;
     }
+    .name-row,
+    .row {
+      display: contents;
+    }
     .name {
-      width: 66.67%;
+      grid-column: 1 / 3;
+      grid-row: 1;
+      min-width: 0;
+      height: 26px;
+      min-height: 26px;
       box-sizing: border-box;
       border: 1px solid #444;
       background: #0f0f0f;
       color: #eee;
-      border-radius: 5px;
-      padding: 3px 5px;
-      font-size: 12px;
-      margin-bottom: 4px;
+      border-radius: 3px;
+      padding: 0 6px;
+      font-size: 11px;
+      line-height: 24px;
       outline: none;
+      align-self: center;
+      -webkit-appearance: none;
+      appearance: none;
     }
     .name:focus {
       border-color: #3b82f6;
@@ -144,28 +197,56 @@
     .meta-text {
       color: #999;
       font-size: 11px;
-      margin-bottom: 2px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .row {
-      display: flex;
-      gap: 4px;
-      margin-top: auto;
-      padding-top: 4px;
+    .meta-text-freqs {
+      grid-column: 1 / -1;
+      grid-row: 2;
     }
-    .row .btn {
-      flex: 1;
-      padding: 4px 0;
-      font-size: 12px;
-      border-radius: 3px;
+    .meta-text-step {
+      grid-column: 1 / -1;
+      grid-row: 3;
     }
-    .copy-link-btn {
+    .meta .btn {
       min-height: 26px;
+      box-sizing: border-box;
+      padding: 4px 4px;
+      font-size: 11px;
+      border-radius: 3px;
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    .meta .capture-btn {
+      grid-column: 3;
+      grid-row: 1;
+      justify-self: stretch;
+      align-self: center;
+      background: #222;
+      color: #ccc;
+      border: 1px solid #555;
+    }
+    .meta .capture-btn:hover {
+      background: #333;
+    }
+    .meta .open-btn {
+      grid-column: 1;
+      grid-row: 4;
+      align-self: end;
+    }
+    .meta .copy-link-btn {
+      grid-column: 2;
+      grid-row: 4;
+      align-self: end;
+    }
+    .meta .del-btn {
+      grid-column: 3;
+      grid-row: 4;
+      align-self: end;
+    }
+    .copy-link-btn {
       background: #222;
       color: #ccc;
       border: 1px solid #555;
@@ -204,10 +285,14 @@
   <div class="wrap">
     <div class="top">
       <button id="backBtn" type="button" aria-label="Back to app" title="Back to app">←</button>
-      <h1>Saved Projects</h1>
+      <div class="lib-tabs">
+        <button type="button" class="lib-tab active" id="tabSaved" aria-pressed="true">Saved projects</button>
+        <button type="button" class="lib-tab" id="tabGallery" aria-pressed="false">Gallery</button>
+      </div>
     </div>
-    <div class="hint">Projects are stored in this browser only.</div>
+    <div class="hint" id="libraryHint">Projects are stored in this browser only.</div>
     <div id="list"></div>
+    <div id="galleryGrid" style="display:none;"></div>
   </div>
   <button id="fullscreenBtn" title="Toggle fullscreen" tabindex="-1"></button>
 
@@ -264,7 +349,56 @@
       return p.toString();
     }
 
-    function render() {
+    function openProject(entry, captureMode) {
+      const hash = encodeShapeToHash(entry.params || {});
+      if (captureMode) {
+        if (window !== window.top) {
+          window.parent.postMessage({ type: "hypo:open", hash, capture: true, entryId: entry.id }, "*");
+        } else {
+          const p = new URLSearchParams(hash);
+          p.set("lid", entry.id);
+          p.set("cap", "1");
+          window.location.href = `index.html#${p.toString()}`;
+        }
+      } else {
+        if (window !== window.top) {
+          window.parent.postMessage({ type: "hypo:open", hash }, "*");
+        } else {
+          window.location.href = `index.html#${hash}`;
+        }
+      }
+    }
+
+    let viewMode = "saved";
+
+    function renderGalleryGrid() {
+      const grid = document.getElementById("galleryGrid");
+      const lib = getLibrary();
+      const items = [];
+      for (const entry of lib) {
+        for (const photo of entry.gallery || []) {
+          items.push({ entry, photo });
+        }
+      }
+      items.sort((a, b) => new Date(b.photo.createdAt) - new Date(a.photo.createdAt));
+      grid.innerHTML = "";
+      if (items.length === 0) {
+        grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No photos yet. Use Capture → Take a photo on a project.</div>';
+        return;
+      }
+      for (const { photo } of items) {
+        const wrap = document.createElement("div");
+        wrap.className = "gallery-item";
+        const img = document.createElement("img");
+        img.src = photo.image;
+        img.alt = "Captured";
+        img.decoding = "async";
+        wrap.appendChild(img);
+        grid.appendChild(wrap);
+      }
+    }
+
+    function renderSavedList() {
       const list = document.getElementById("list");
       const lib = getLibrary();
       if (lib.length === 0) {
@@ -286,6 +420,9 @@
         const meta = document.createElement("div");
         meta.className = "meta";
 
+        const nameRow = document.createElement("div");
+        nameRow.className = "name-row";
+
         const name = document.createElement("input");
         name.className = "name";
         name.type = "text";
@@ -298,15 +435,24 @@
           item.name = name.value.trim() || "Untitled";
           saveLibrary(lib2);
         });
-        meta.appendChild(name);
+        nameRow.appendChild(name);
+
+        const captureBtn = document.createElement("button");
+        captureBtn.className = "btn capture-btn";
+        captureBtn.type = "button";
+        captureBtn.textContent = "Capture";
+        captureBtn.addEventListener("click", () => openProject(entry, true));
+        nameRow.appendChild(captureBtn);
+
+        meta.appendChild(nameRow);
 
         const freqsText = document.createElement("div");
-        freqsText.className = "meta-text";
+        freqsText.className = "meta-text meta-text-freqs";
         freqsText.textContent = (entry.params && entry.params.freqs) ? `freqs: ${entry.params.freqs}` : "freqs: (empty)";
         meta.appendChild(freqsText);
 
         const stepText = document.createElement("div");
-        stepText.className = "meta-text";
+        stepText.className = "meta-text meta-text-step";
         stepText.textContent = (entry.params && Number.isFinite(entry.params.step)) ? `angle step: ${entry.params.step}` : "angle step: (empty)";
         meta.appendChild(stepText);
 
@@ -317,14 +463,7 @@
         openBtn.className = "btn open-btn";
         openBtn.type = "button";
         openBtn.textContent = "Open";
-        openBtn.addEventListener("click", () => {
-          const hash = encodeShapeToHash(entry.params || {});
-          if (window !== window.top) {
-            window.parent.postMessage({ type: "hypo:open", hash }, "*");
-          } else {
-            window.location.href = `index.html#${hash}`;
-          }
-        });
+        openBtn.addEventListener("click", () => openProject(entry, false));
 
         const linkBtn = document.createElement("button");
         linkBtn.className = "btn copy-link-btn";
@@ -358,7 +497,8 @@
         delBtn.textContent = "Delete";
         delBtn.addEventListener("click", () => {
           saveLibrary(getLibrary().filter(x => x.id !== entry.id));
-          render();
+          renderSavedList();
+          if (viewMode === "gallery") renderGalleryGrid();
         });
 
         row.appendChild(openBtn);
@@ -375,6 +515,32 @@
         list.appendChild(card);
       }
     }
+
+    function render() {
+      if (viewMode === "gallery") renderGalleryGrid();
+      else renderSavedList();
+    }
+
+    document.getElementById("tabSaved").addEventListener("click", () => {
+      viewMode = "saved";
+      document.getElementById("tabSaved").classList.add("active");
+      document.getElementById("tabGallery").classList.remove("active");
+      document.getElementById("list").style.display = "";
+      document.getElementById("galleryGrid").style.display = "none";
+      const hint = document.getElementById("libraryHint");
+      if (hint) hint.style.display = "";
+      renderSavedList();
+    });
+    document.getElementById("tabGallery").addEventListener("click", () => {
+      viewMode = "gallery";
+      document.getElementById("tabGallery").classList.add("active");
+      document.getElementById("tabSaved").classList.remove("active");
+      document.getElementById("list").style.display = "none";
+      document.getElementById("galleryGrid").style.display = "grid";
+      const hint = document.getElementById("libraryHint");
+      if (hint) hint.style.display = "none";
+      renderGalleryGrid();
+    });
 
     document.getElementById("backBtn").addEventListener("click", () => {
       if (window !== window.top) {
