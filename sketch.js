@@ -121,14 +121,249 @@ function attachSliderTooltip(slider) {
   slider.addEventListener("mouseleave", hideSliderTooltip);
 }
 
-function snapRhoValue(v) {
-  const targets = [-1, 0, 1];
-  const eps = 0.08;
+const DEFAULT_RHO_MIN = -2;
+const DEFAULT_RHO_MAX = 2;
+
+/** Snap to the three quarter marks between min and max (for default -2..2 → -1, 0, 1). */
+function snapRhoValue(v, min = DEFAULT_RHO_MIN, max = DEFAULT_RHO_MAX) {
+  if (!Number.isFinite(v)) return min;
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return v;
+  const mid = (min + max) / 2;
+  const span = max - min;
+  const targets = [mid - span / 4, mid, mid + span / 4];
+  const eps = Math.max(0.06, span * 0.025);
   for (let i = 0; i < targets.length; i++) {
     const t = targets[i];
     if (Math.abs(v - t) < eps) return t;
   }
   return v;
+}
+
+function formatRhoTickLabel(x) {
+  if (!Number.isFinite(x)) return "";
+  if (Math.abs(x) < 1e-9) return "0";
+  const rounded = Math.round(x * 1000) / 1000;
+  if (Math.abs(rounded - Math.round(rounded)) < 1e-6) return String(Math.round(rounded));
+  return String(rounded);
+}
+
+function updateRhoTickLabels(state) {
+  if (!state || !state.ticksEl || !state.slider) return;
+  const ticks = state.ticksEl;
+  const slider = state.slider;
+  const min = parseFloat(slider.min);
+  const max = parseFloat(slider.max);
+  ticks.innerHTML = "";
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
+  const mid = (min + max) / 2;
+  const spanW = max - min;
+  const tickVals = [min, min + spanW / 4, mid, max - spanW / 4, max];
+  /* Pixel-tuned with the slider thumb/track; keep for every range (not only -2..2). */
+  const positions = [0, 25, 50, 75, 100];
+  const offsets = [1, 2, 2, 2, 2];
+  for (let ti = 0; ti < tickVals.length; ti++) {
+    const label = document.createElement("span");
+    label.textContent = formatRhoTickLabel(tickVals[ti]);
+    const p = positions[ti];
+    const off = offsets[ti];
+    label.style.cssText = `position:absolute;left:calc(${p}% + ${5 - p * 0.1 + off}px);transform:translateX(-50%);`;
+    ticks.appendChild(label);
+  }
+}
+
+function randomRhoForSlider(slider) {
+  const min = parseFloat(slider.min);
+  const max = parseFloat(slider.max);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return 0;
+  return parseFloat((min + Math.random() * (max - min)).toFixed(3));
+}
+
+let rhoPopoverEl = null;
+let rhoPopoverAnchorState = null;
+let rhoPlayAllSpeedPopoverEl = null;
+let rhoPlayAllSpeedAnchorBtn = null;
+let playAllSpeedDraft = 1;
+
+function ensureRhoPopover() {
+  if (rhoPopoverEl) return rhoPopoverEl;
+  const el = document.createElement("div");
+  el.id = "rhoSliderPopover";
+  el.className = "rho-slider-popover";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", "ρ value and range");
+  el.style.display = "none";
+  function addField(labelText, className, parent) {
+    const lab = document.createElement("label");
+    lab.style.display = "flex";
+    lab.style.flexDirection = "column";
+    lab.style.gap = "2px";
+    const cap = document.createElement("span");
+    cap.textContent = labelText;
+    cap.style.color = "#aaa";
+    cap.style.fontSize = "11px";
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.step = "any";
+    inp.className = className;
+    inp.autocomplete = "off";
+    lab.appendChild(cap);
+    lab.appendChild(inp);
+    parent.appendChild(lab);
+    return inp;
+  }
+  const inpVal = addField("Value", "rho-pop-val", el);
+  const minMaxRow = document.createElement("div");
+  minMaxRow.className = "rho-pop-minmax-row";
+  const inpMin = addField("Min", "rho-pop-min", minMaxRow);
+  const inpMax = addField("Max", "rho-pop-max", minMaxRow);
+  el.appendChild(minMaxRow);
+  const applyBtn = document.createElement("button");
+  applyBtn.type = "button";
+  applyBtn.className = "rho-pop-apply";
+  applyBtn.textContent = "Apply";
+  el.appendChild(applyBtn);
+  document.body.appendChild(el);
+  function apply() {
+    if (rhoPopoverAnchorState) applyRhoPopoverValues(rhoPopoverAnchorState);
+  }
+  applyBtn.addEventListener("click", apply);
+  [inpVal, inpMin, inpMax].forEach((inp) => {
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        apply();
+      }
+    });
+  });
+  rhoPopoverEl = el;
+  return el;
+}
+
+function rhoPopoverBackdropDown(e) {
+  if (!rhoPopoverEl || rhoPopoverEl.style.display === "none") return;
+  if (rhoPopoverEl.contains(e.target)) return;
+  if (e.target.closest && e.target.closest(".rho-slider-menu")) return;
+  closeRhoPopover();
+}
+
+function positionRhoPopover(anchorBtn) {
+  if (!rhoPopoverEl || !anchorBtn) return;
+  const pop = rhoPopoverEl;
+  const prevVis = pop.style.visibility;
+  pop.style.visibility = "hidden";
+  pop.style.display = "block";
+  const pr = pop.getBoundingClientRect();
+  const br = anchorBtn.getBoundingClientRect();
+  let left = br.right + 6;
+  let top = br.top + br.height / 2 - pr.height / 2;
+  if (left + pr.width > window.innerWidth - 8) left = Math.max(8, br.left - pr.width - 6);
+  top = Math.max(8, Math.min(top, window.innerHeight - pr.height - 8));
+  left = Math.max(8, Math.min(left, window.innerWidth - pr.width - 8));
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+  pop.style.visibility = prevVis || "";
+}
+
+function openRhoPopover(state, menuBtn) {
+  closePlayAllSpeedPopover();
+  const el = ensureRhoPopover();
+  document.removeEventListener("mousedown", rhoPopoverBackdropDown, true);
+  rhoPopoverAnchorState = state;
+  const s = state.slider;
+  el.querySelector(".rho-pop-val").value = s.value;
+  el.querySelector(".rho-pop-min").value = s.min;
+  el.querySelector(".rho-pop-max").value = s.max;
+  el.style.visibility = "";
+  el.style.display = "block";
+  positionRhoPopover(menuBtn);
+  requestAnimationFrame(() => positionRhoPopover(menuBtn));
+  document.addEventListener("mousedown", rhoPopoverBackdropDown, true);
+}
+
+function closeRhoPopover() {
+  if (rhoPopoverEl) {
+    rhoPopoverEl.style.display = "none";
+    rhoPopoverEl.style.visibility = "";
+  }
+  rhoPopoverAnchorState = null;
+  document.removeEventListener("mousedown", rhoPopoverBackdropDown, true);
+}
+
+function toggleRhoPopover(state, menuBtn) {
+  if (rhoPopoverAnchorState === state && rhoPopoverEl && rhoPopoverEl.style.display !== "none") {
+    closeRhoPopover();
+  } else {
+    openRhoPopover(state, menuBtn);
+  }
+}
+
+function applyRhoPopoverValues(state) {
+  if (!state || !state.slider) {
+    closeRhoPopover();
+    return;
+  }
+  const el = ensureRhoPopover();
+  let val = parseFloat(el.querySelector(".rho-pop-val").value);
+  let minV = parseFloat(el.querySelector(".rho-pop-min").value);
+  let maxV = parseFloat(el.querySelector(".rho-pop-max").value);
+  const s = state.slider;
+  if (!Number.isFinite(val)) val = parseFloat(s.value);
+  if (!Number.isFinite(minV)) minV = parseFloat(s.min);
+  if (!Number.isFinite(maxV)) maxV = parseFloat(s.max);
+  if (Number.isFinite(val)) {
+    if (val < minV) minV = val;
+    if (val > maxV) maxV = val;
+  }
+  if (!(maxV > minV)) maxV = minV + 1e-4;
+  s.min = String(minV);
+  s.max = String(maxV);
+  const clamped = Math.min(maxV, Math.max(minV, Number.isFinite(val) ? val : parseFloat(s.value)));
+  s.value = String(clamped);
+  if (state.animValue != null) state.animValue = parseFloat(s.value);
+  updateRhoTickLabels(state);
+  closeRhoPopover();
+  computeFromUI(false, false, true);
+}
+
+/** Center ⋮ horizontally between » and #ui right edge; does not change any other layout. */
+function positionRhoSliderMenus() {
+  const ui = document.getElementById("ui");
+  const holder = document.getElementById("rhoSliders");
+  if (!ui || !holder) return;
+  const cs = getComputedStyle(ui);
+  if (cs.display === "none" || cs.visibility === "hidden") return;
+  const uiR = ui.getBoundingClientRect();
+  if (uiR.width < 2) return;
+  const lines = holder.querySelectorAll(".rho-row > .rho-line");
+  let sharedMidX = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const menu = line.querySelector(":scope > .rho-slider-menu");
+    const speed = line.querySelector(":scope > .rho-speed");
+    if (!menu || !speed) continue;
+    const sr = speed.getBoundingClientRect();
+    const lr = line.getBoundingClientRect();
+    const midX = (sr.right + uiR.right) / 2;
+    if (sharedMidX === null) sharedMidX = midX;
+    const leftPx = Math.max(0, midX - lr.left);
+    menu.style.left = `${leftPx}px`;
+    menu.style.right = "auto";
+  }
+  const playRow = document.getElementById("playAllRow");
+  const playMenu = playRow?.querySelector(":scope > .rho-slider-menu");
+  if (playRow && playMenu && sharedMidX != null) {
+    const pr = playRow.getBoundingClientRect();
+    const leftPx = Math.max(0, sharedMidX - pr.left);
+    playMenu.style.left = `${leftPx}px`;
+    playMenu.style.right = "auto";
+  }
+  if (
+    rhoPlayAllSpeedPopoverEl &&
+    rhoPlayAllSpeedPopoverEl.style.display !== "none" &&
+    rhoPlayAllSpeedAnchorBtn
+  ) {
+    positionPlayAllSpeedPopover(rhoPlayAllSpeedAnchorBtn);
+  }
 }
 
 function addPlayAllButton(container) {
@@ -147,9 +382,13 @@ function addPlayAllButton(container) {
     stopAllRhoAnimations();
     for (const state of rhoAnimStates) {
       if (!state) continue;
-      state.slider.value = "0";
+      const s = state.slider;
+      s.min = String(DEFAULT_RHO_MIN);
+      s.max = String(DEFAULT_RHO_MAX);
+      s.value = "0";
       state.animValue = null;
       state.dir = 1;
+      updateRhoTickLabels(state);
     }
     computeFromUI(false, false, false);
   });
@@ -169,7 +408,7 @@ function addPlayAllButton(container) {
       if (randomRhosActive) {
         for (const state of rhoAnimStates) {
           if (!state) continue;
-          const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+          const v = randomRhoForSlider(state.slider);
           state.slider.value = String(v);
           state.animValue = v;
           state.dir = Math.random() < 0.5 ? 1 : -1;
@@ -184,7 +423,7 @@ function addPlayAllButton(container) {
     if (_rndHeld) { _rndHeld = false; return; }
     for (const state of rhoAnimStates) {
       if (!state) continue;
-      const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+      const v = randomRhoForSlider(state.slider);
       state.slider.value = String(v);
       state.animValue = v;
       state.dir = Math.random() < 0.5 ? 1 : -1;
@@ -211,9 +450,23 @@ function addPlayAllButton(container) {
     updatePlayAllBtn(playBtn);
   });
 
+  const playAllMenuBtn = document.createElement("button");
+  playAllMenuBtn.type = "button";
+  playAllMenuBtn.id = "playAllRowMenuBtn";
+  playAllMenuBtn.className = "rho-slider-menu";
+  playAllMenuBtn.setAttribute("aria-label", "Playback speed for all ρ sliders");
+  for (let d = 0; d < 3; d++) {
+    playAllMenuBtn.appendChild(document.createElement("span"));
+  }
+  playAllMenuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    togglePlayAllSpeedPopover(playAllMenuBtn);
+  });
+
   row.appendChild(resetBtn);
   row.appendChild(randomBtn);
   row.appendChild(playBtn);
+  row.appendChild(playAllMenuBtn);
   container.appendChild(row);
 }
 
@@ -312,7 +565,128 @@ function createRhoSpeedControl(state) {
   row.appendChild(btnUp);
   wrap.appendChild(row);
   updateDisplay();
+  state.speedDisplayUpdate = updateDisplay;
   return wrap;
+}
+
+function applyPlayAllSpeedMult(mult) {
+  const m = roundSpeedMult(mult);
+  for (const state of rhoAnimStates) {
+    if (!state) continue;
+    state.speedMultiplier = m;
+    if (typeof state.speedDisplayUpdate === "function") state.speedDisplayUpdate();
+  }
+}
+
+function ensurePlayAllSpeedPopover() {
+  if (rhoPlayAllSpeedPopoverEl) return rhoPlayAllSpeedPopoverEl;
+  const el = document.createElement("div");
+  el.id = "rhoPlayAllSpeedPopover";
+  el.className = "rho-playall-speed-popover";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", "Playback speed for all length-ratio sliders");
+  el.style.display = "none";
+  const row = document.createElement("div");
+  row.className = "rho-speed-row";
+  const btnDown = document.createElement("button");
+  btnDown.type = "button";
+  btnDown.className = "rho-speed-btn";
+  btnDown.textContent = "«";
+  const valSpan = document.createElement("span");
+  valSpan.className = "rho-speed-value";
+  const btnUp = document.createElement("button");
+  btnUp.type = "button";
+  btnUp.className = "rho-speed-btn";
+  btnUp.textContent = "»";
+  row.appendChild(btnDown);
+  row.appendChild(valSpan);
+  row.appendChild(btnUp);
+  el.appendChild(row);
+  document.body.appendChild(el);
+
+  function syncSpan() {
+    valSpan.textContent = String(Number(playAllSpeedDraft)) + "x";
+  }
+  btnDown.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(playAllSpeedDraft));
+    playAllSpeedDraft = RHO_SPEED_VALUES[Math.max(0, i - 1)];
+    applyPlayAllSpeedMult(playAllSpeedDraft);
+    syncSpan();
+  });
+  btnUp.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const i = RHO_SPEED_VALUES.indexOf(roundSpeedMult(playAllSpeedDraft));
+    playAllSpeedDraft = RHO_SPEED_VALUES[Math.min(RHO_SPEED_VALUES.length - 1, i + 1)];
+    applyPlayAllSpeedMult(playAllSpeedDraft);
+    syncSpan();
+  });
+
+  rhoPlayAllSpeedPopoverEl = el;
+  return el;
+}
+
+function positionPlayAllSpeedPopover(anchorBtn) {
+  if (!rhoPlayAllSpeedPopoverEl || !anchorBtn) return;
+  const pop = rhoPlayAllSpeedPopoverEl;
+  const prevVis = pop.style.visibility;
+  pop.style.visibility = "hidden";
+  pop.style.display = "block";
+  const pr = pop.getBoundingClientRect();
+  const br = anchorBtn.getBoundingClientRect();
+  let left = br.right + 6;
+  let top = br.top + br.height / 2 - pr.height / 2;
+  if (left + pr.width > window.innerWidth - 8) left = Math.max(8, br.left - pr.width - 6);
+  top = Math.max(8, Math.min(top, window.innerHeight - pr.height - 8));
+  left = Math.max(8, Math.min(left, window.innerWidth - pr.width - 8));
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+  pop.style.visibility = prevVis || "";
+}
+
+function playAllSpeedPopoverBackdropDown(e) {
+  if (!rhoPlayAllSpeedPopoverEl || rhoPlayAllSpeedPopoverEl.style.display === "none") return;
+  if (rhoPlayAllSpeedPopoverEl.contains(e.target)) return;
+  if (e.target.closest && e.target.closest(".rho-slider-menu")) return;
+  closePlayAllSpeedPopover();
+}
+
+function closePlayAllSpeedPopover() {
+  if (rhoPlayAllSpeedPopoverEl) {
+    rhoPlayAllSpeedPopoverEl.style.display = "none";
+    rhoPlayAllSpeedPopoverEl.style.visibility = "";
+  }
+  rhoPlayAllSpeedAnchorBtn = null;
+  document.removeEventListener("mousedown", playAllSpeedPopoverBackdropDown, true);
+}
+
+function openPlayAllSpeedPopover(anchorBtn) {
+  closeRhoPopover();
+  const first = rhoAnimStates.find(s => s);
+  if (!first || !anchorBtn) return;
+  const el = ensurePlayAllSpeedPopover();
+  document.removeEventListener("mousedown", playAllSpeedPopoverBackdropDown, true);
+  playAllSpeedDraft = roundSpeedMult(first.speedMultiplier ?? 1);
+  const valSpan = el.querySelector(".rho-speed-value");
+  if (valSpan) valSpan.textContent = String(Number(playAllSpeedDraft)) + "x";
+  rhoPlayAllSpeedAnchorBtn = anchorBtn;
+  el.style.visibility = "";
+  el.style.display = "block";
+  positionPlayAllSpeedPopover(anchorBtn);
+  requestAnimationFrame(() => positionPlayAllSpeedPopover(anchorBtn));
+  document.addEventListener("mousedown", playAllSpeedPopoverBackdropDown, true);
+}
+
+function togglePlayAllSpeedPopover(anchorBtn) {
+  if (
+    rhoPlayAllSpeedAnchorBtn === anchorBtn &&
+    rhoPlayAllSpeedPopoverEl &&
+    rhoPlayAllSpeedPopoverEl.style.display !== "none"
+  ) {
+    closePlayAllSpeedPopover();
+  } else {
+    openPlayAllSpeedPopover(anchorBtn);
+  }
 }
 
 function rhoAnimationStep(timestamp) {
@@ -330,11 +704,15 @@ function rhoAnimationStep(timestamp) {
       if (!isFinite(state.animValue)) state.animValue = 0;
     }
     state.animValue += state.dir * RHO_ANIM_SPEED_PER_SECOND * mult * dt;
-    if (state.animValue > 2) {
-      state.animValue = 2;
+    const smin = parseFloat(state.slider.min);
+    const smax = parseFloat(state.slider.max);
+    const lo = Number.isFinite(smin) ? smin : DEFAULT_RHO_MIN;
+    const hi = Number.isFinite(smax) ? smax : DEFAULT_RHO_MAX;
+    if (state.animValue > hi) {
+      state.animValue = hi;
       state.dir = -1;
-    } else if (state.animValue < -2) {
-      state.animValue = -2;
+    } else if (state.animValue < lo) {
+      state.animValue = lo;
       state.dir = 1;
     }
     state.slider.value = String(Number(state.animValue.toFixed(4)));
@@ -484,8 +862,23 @@ function applyShapeParams(params) {
     const sliders = document.querySelectorAll("input.rho-slider");
     params.rhos.forEach((v, i) => {
       if (sliders[i]) {
-        sliders[i].value = String(v);
-        if (rhoAnimStates[i]) rhoAnimStates[i].animValue = v;
+        const s = sliders[i];
+        let minV = parseFloat(s.min);
+        let maxV = parseFloat(s.max);
+        if (!Number.isFinite(minV)) minV = DEFAULT_RHO_MIN;
+        if (!Number.isFinite(maxV)) maxV = DEFAULT_RHO_MAX;
+        if (Number.isFinite(v)) {
+          if (v < minV) minV = v;
+          if (v > maxV) maxV = v;
+        }
+        if (!(maxV > minV)) maxV = minV + 1e-4;
+        s.min = String(minV);
+        s.max = String(maxV);
+        s.value = String(Number.isFinite(v) ? Math.min(maxV, Math.max(minV, v)) : s.value);
+        if (rhoAnimStates[i]) {
+          rhoAnimStates[i].animValue = parseFloat(s.value);
+          updateRhoTickLabels(rhoAnimStates[i]);
+        }
       }
     });
     computeFromUI(false, false, false);
@@ -999,7 +1392,7 @@ function setup() {
     if (randomRhosActive) {
       for (const state of rhoAnimStates) {
         if (!state) continue;
-        const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+        const v = randomRhoForSlider(state.slider);
         state.slider.value = String(v);
         state.animValue = null;
         state.dir = Math.random() < 0.5 ? 1 : -1;
@@ -1305,6 +1698,8 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
     if (slidersContainer) { slidersContainer.style.display = "none"; slidersContainer.innerHTML = ""; lastSliderCount = 0; }
     if (lengthLabel) lengthLabel.style.display = "none";
     rhoAnimStates = [];
+    closeRhoPopover();
+    closePlayAllSpeedPopover();
     const existingRow = document.getElementById("playAllRow");
     if (existingRow) existingRow.remove();
   } else {
@@ -1316,6 +1711,8 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
       // build sliders once per frequency-count
       const existing = slidersContainer.querySelectorAll("input.rho-slider");
       if (existing.length !== parsed.length) {
+        closeRhoPopover();
+        closePlayAllSpeedPopover();
         slidersContainer.innerHTML = "";
         rhoAnimStates = new Array(parsed.length).fill(null);
         for (let i = 0; i < parsed.length; i++) {
@@ -1328,25 +1725,41 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
           const slider = document.createElement("input");
           slider.type = "range";
           slider.className = "rho-slider";
-          slider.min = "-2";
-          slider.max = "2";
+          slider.min = String(DEFAULT_RHO_MIN);
+          slider.max = String(DEFAULT_RHO_MAX);
           slider.step = "0.001";
           const initialRho =
             Array.isArray(currentRhos) && currentRhos.length === parsed.length
               ? currentRhos[i] || 0
               : 0;
           slider.value = String(initialRho);
-          const state = { slider, dir: 1, active: false, button: null, speedMultiplier: 1 };
+          const state = { slider, dir: 1, active: false, button: null, speedMultiplier: 1, ticksEl: null, menuBtn: null };
           rhoAnimStates[i] = state;
           attachSliderTooltip(slider);
           slider.addEventListener("input", () => {
             const raw = parseFloat(slider.value);
-            const snapped = snapRhoValue(isFinite(raw) ? raw : 0);
+            const smin = parseFloat(slider.min);
+            const smax = parseFloat(slider.max);
+            const snapped = snapRhoValue(isFinite(raw) ? raw : 0, smin, smax);
             slider.value = String(snapped);
             if (state.animValue != null) state.animValue = snapped;
             showSliderTooltip(slider);
             computeFromUI(false, false, true);
           });
+
+          const menuBtn = document.createElement("button");
+          menuBtn.type = "button";
+          menuBtn.className = "rho-slider-menu";
+          menuBtn.setAttribute("aria-label", "ρ value and slider range");
+          menuBtn.setAttribute("aria-haspopup", "dialog");
+          for (let d = 0; d < 3; d++) {
+            menuBtn.appendChild(document.createElement("span"));
+          }
+          menuBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleRhoPopover(state, menuBtn);
+          });
+          state.menuBtn = menuBtn;
 
           const play = document.createElement("button");
           play.type = "button";
@@ -1360,33 +1773,28 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
             updatePlayAllBtn();
           });
 
+          const ticks = document.createElement("div");
+          ticks.className = "rho-ticks";
+          ticks.style.height = "14px";
+          state.ticksEl = ticks;
+          updateRhoTickLabels(state);
+
           const sliderCol = document.createElement("div");
           sliderCol.style.cssText = "flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding-top:5px;";
           sliderCol.appendChild(slider);
-
-          const ticks = document.createElement("div");
-          ticks.className = "rho-ticks";
-          const labels = ["-2", "-1", "0", "1", "2"];
-          const offsets = [1, 2, 2, 2, 2];
-          const positions = [0, 25, 50, 75, 100];
-          for (let li = 0; li < labels.length; li++) {
-            const span = document.createElement("span");
-            span.textContent = labels[li];
-            span.style.cssText = `position:absolute;left:calc(${positions[li]}% + ${5 - positions[li] * 0.1 + offsets[li]}px);transform:translateX(-50%);`;
-            ticks.appendChild(span);
-          }
-          ticks.style.height = "14px";
           sliderCol.appendChild(ticks);
 
           line.appendChild(sliderCol);
           line.appendChild(play);
           line.appendChild(createRhoSpeedControl(state));
+          line.appendChild(menuBtn);
 
           row.appendChild(line);
           slidersContainer.appendChild(row);
         }
         addPlayAllButton(slidersContainer);
         lastSliderCount = parsed.length;
+        requestAnimationFrame(() => requestAnimationFrame(positionRhoSliderMenus));
       }
 
       const sliders = slidersContainer.querySelectorAll("input.rho-slider");
@@ -1394,7 +1802,9 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
         const s = sliders[i];
         const v = s ? parseFloat(s.value) : 0;
         const baseVal = isFinite(v) ? v : 0;
-        rhos.push(snapRhosValues ? snapRhoValue(baseVal) : baseVal);
+        const smin = s ? parseFloat(s.min) : DEFAULT_RHO_MIN;
+        const smax = s ? parseFloat(s.max) : DEFAULT_RHO_MAX;
+        rhos.push(snapRhosValues ? snapRhoValue(baseVal, smin, smax) : baseVal);
       }
     }
   } else if (preserveRhos && currentRhos.length === parsed.length) {
@@ -1543,10 +1953,14 @@ function zoomAtScreenCenter(zoomIn, isKeyRepeat = false) {
 }
 
 function mouseWheel(event) {
-  const ui = document.getElementById("ui");
-  if (ui && ui.style.display !== "none") {
-    const el = document.elementFromPoint(mouseX, mouseY);
-    if (el && ui.contains(el)) return;
+  const el = document.elementFromPoint(mouseX, mouseY);
+  if (el) {
+    const ui = document.getElementById("ui");
+    if (ui && ui.style.display !== "none" && ui.contains(el)) return;
+    const rhoPop = document.getElementById("rhoSliderPopover");
+    if (rhoPop && rhoPop.style.display !== "none" && rhoPop.contains(el)) return;
+    const playAllSpd = document.getElementById("rhoPlayAllSpeedPopover");
+    if (playAllSpd && playAllSpd.style.display !== "none" && playAllSpd.contains(el)) return;
   }
   const mouseRelX = mouseX - width / 2;
   const mouseRelY = mouseY - height / 2;
@@ -1568,14 +1982,18 @@ function mouseWheel(event) {
 }
 
 function mouseDragged() {
-  const ui = document.getElementById("ui");
-  if (ui) {
-    const el = document.elementFromPoint(mouseX, mouseY);
-    if (el && ui.contains(el)) {
+  const el = document.elementFromPoint(mouseX, mouseY);
+  if (el) {
+    const ui = document.getElementById("ui");
+    if (ui && ui.contains(el)) {
       // ignore drag for panning when over the UI,
       // but don't cancel the browser's default so sliders still work
       return;
     }
+    const rhoPop = document.getElementById("rhoSliderPopover");
+    if (rhoPop && rhoPop.style.display !== "none" && rhoPop.contains(el)) return;
+    const playAllSpd = document.getElementById("rhoPlayAllSpeedPopover");
+    if (playAllSpd && playAllSpd.style.display !== "none" && playAllSpd.contains(el)) return;
   }
   offsetX += movedX;
   offsetY += movedY;
@@ -1596,6 +2014,7 @@ document.getElementById("closeUiBtn").addEventListener("click", () => {
 document.getElementById("openUiBtn").addEventListener("click", () => {
   document.getElementById("ui").style.display = "";
   document.getElementById("openUiBtn").style.display = "none";
+  requestAnimationFrame(() => requestAnimationFrame(positionRhoSliderMenus));
 });
 
 function toggleFullscreen() {
@@ -1628,7 +2047,19 @@ saveFullscreenState();
 document.addEventListener("fullscreenchange", () => {
   updateFullscreenButtonIcon();
   saveFullscreenState();
+  requestAnimationFrame(positionRhoSliderMenus);
 });
+
+window.addEventListener("resize", () => requestAnimationFrame(positionRhoSliderMenus));
+
+(function initRhoMenuLayoutObserver() {
+  const ui = document.getElementById("ui");
+  if (!ui) return;
+  ui.addEventListener("scroll", () => requestAnimationFrame(positionRhoSliderMenus), { passive: true });
+  if (typeof ResizeObserver === "undefined") return;
+  const ro = new ResizeObserver(() => requestAnimationFrame(positionRhoSliderMenus));
+  ro.observe(ui);
+})();
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Tab") {
@@ -1686,7 +2117,7 @@ function keyPressed() {
     if (randomRhosActive) {
       for (const state of rhoAnimStates) {
         if (!state) continue;
-        const v = parseFloat((Math.random() * 4 - 2).toFixed(3));
+        const v = randomRhoForSlider(state.slider);
         state.slider.value = String(v);
         state.animValue = null;
         state.dir = Math.random() < 0.5 ? 1 : -1;

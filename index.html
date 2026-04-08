@@ -171,6 +171,7 @@
       width: 100%;
     }
     .rho-line {
+      position: relative;
       display: flex;
       align-items: flex-start;
       gap: 4px;
@@ -226,6 +227,125 @@
       box-sizing: border-box;
       font-size: 10px;
       color: #aaa;
+    }
+    .rho-line > .rho-slider-menu,
+    #playAllRow > .rho-slider-menu {
+      position: absolute;
+      transform: translate(calc(-50% - 3px), -50%);
+      width: 18px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      background: transparent;
+      color: #888;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      box-sizing: border-box;
+      line-height: 0;
+      z-index: 2;
+    }
+    .rho-line > .rho-slider-menu {
+      top: 9px;
+    }
+    #playAllRow {
+      position: relative;
+    }
+    #playAllRow > .rho-slider-menu {
+      top: 50%;
+    }
+    .rho-line > .rho-slider-menu:hover,
+    #playAllRow > .rho-slider-menu:hover {
+      color: #ccc;
+    }
+    .rho-line > .rho-slider-menu:focus-visible,
+    #playAllRow > .rho-slider-menu:focus-visible {
+      outline: 1px solid rgba(96, 165, 250, 0.7);
+      outline-offset: 2px;
+    }
+    .rho-line > .rho-slider-menu span,
+    #playAllRow > .rho-slider-menu span {
+      display: block;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .rho-slider-popover {
+      position: fixed;
+      z-index: 200;
+      box-sizing: border-box;
+      width: 200px;
+      min-width: 200px;
+      max-width: 200px;
+      padding: 8px 6px;
+      background: rgba(28, 28, 28, 0.98);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+      font-size: 12px;
+      color: #eee;
+    }
+    .rho-slider-popover label {
+      margin-top: 6px;
+    }
+    .rho-slider-popover > label:first-of-type {
+      margin-top: 0;
+    }
+    .rho-pop-minmax-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .rho-pop-minmax-row label {
+      flex: 1;
+      min-width: 0;
+      margin-top: 0;
+    }
+    .rho-slider-popover input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 4px 6px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background: #111;
+      color: #eee;
+      font-size: 12px;
+    }
+    .rho-slider-popover .rho-pop-apply {
+      margin-top: 10px;
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: none;
+      background: #00b3ffc5;
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .rho-slider-popover .rho-pop-apply:hover {
+      background: #00aeff;
+    }
+    .rho-playall-speed-popover {
+      position: fixed;
+      z-index: 200;
+      box-sizing: border-box;
+      width: fit-content;
+      min-width: 0;
+      padding: 6px 8px;
+      background: rgba(28, 28, 28, 0.98);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+      font-size: 12px;
+      color: #eee;
+    }
+    .rho-playall-speed-popover .rho-speed-row {
+      justify-content: center;
     }
     .rho-play {
       border: 1px solid #555;

@@ -50,9 +50,9 @@
     .btn:hover { background: #333; }
     #backBtn {
       position: absolute;
-      left: -44px;
+      left: -52px;
       top: 50%;
-      transform: translateY(-50%);
+      transform: translateY(calc(-50% - 4px));
       border: none;
       background: transparent;
       color: #ccc;
@@ -112,16 +112,160 @@
       gap: 10px;
     }
     .gallery-item {
+      position: relative;
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 8px;
       overflow: hidden;
       background: rgba(20, 20, 20, 0.9);
     }
-    .gallery-item img {
+    .gallery-item img.gallery-item-img {
       width: 100%;
       aspect-ratio: 16 / 9;
       object-fit: cover;
       display: block;
+    }
+    .gallery-item-menu-wrap {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      z-index: 4;
+    }
+    .gallery-menu-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #ccc;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      line-height: 0;
+    }
+    .gallery-menu-btn:hover {
+      color: #fff;
+      background: rgba(0, 0, 0, 0.72);
+    }
+    .gallery-menu-btn span {
+      display: block;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .gallery-menu-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      min-width: 148px;
+      padding: 4px;
+      background: rgba(28, 28, 28, 0.98);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      z-index: 5;
+    }
+    .gallery-menu-dropdown.is-open {
+      display: block;
+    }
+    .gallery-menu-dropdown button {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #ddd;
+      font: inherit;
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .gallery-menu-dropdown button:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .gallery-menu-dropdown .gallery-menu-del {
+      color: #f87171;
+    }
+    .gallery-menu-dropdown .gallery-menu-del:hover {
+      background: rgba(248, 113, 113, 0.12);
+      color: #fca5a5;
+    }
+    .gallery-item-fs-btn {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      z-index: 3;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      margin: 0;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #ccc;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .gallery-item-fs-btn:hover {
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+    }
+    .gallery-item-fs-btn svg {
+      display: block;
+    }
+    #galleryImageOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.94);
+      box-sizing: border-box;
+      padding: 48px 16px 16px;
+    }
+    #galleryImageOverlay.is-visible {
+      display: flex;
+    }
+    #galleryImageOverlay .gallery-fs-overlay-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      background: rgba(40, 40, 40, 0.9);
+      color: #eee;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #galleryImageOverlay .gallery-fs-overlay-close:hover {
+      background: rgba(60, 60, 60, 0.95);
+    }
+    #galleryImageOverlayImg {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
     }
     .card {
       position: relative;
@@ -253,8 +397,8 @@
     }
     .copy-link-btn:hover { background: #333; }
     .copy-link-btn.copied { border-color: #22c55e; color: #22c55e; }
-    .open-btn { background: #2563eb; color: #fff; border-color: #3b82f6; }
-    .open-btn:hover { background: #3b82f6; }
+    .open-btn { background: #00b3ffc5; color: #fff; border: none; }
+    .open-btn:hover { background: #00aeff; }
     .del-btn { background: rgba(220, 38, 38, 0.7); color: #fff; border-color: rgba(239, 68, 68, 0.8); }
     .del-btn:hover { background: rgba(239, 68, 68, 0.85); }
     #fullscreenBtn {
@@ -294,6 +438,10 @@
     <div id="list"></div>
     <div id="galleryGrid" style="display:none;"></div>
   </div>
+  <div id="galleryImageOverlay" aria-hidden="true">
+    <button type="button" class="gallery-fs-overlay-close" aria-label="Close image view">×</button>
+    <img id="galleryImageOverlayImg" alt="Gallery capture" />
+  </div>
   <button id="fullscreenBtn" title="Toggle fullscreen" tabindex="-1"></button>
 
   <script>
@@ -301,6 +449,97 @@
     const FULLSCREEN_STATE_KEY = "hypo_fullscreen_state";
     const ICON_ENTER = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 1,1 5,1"/><polyline points="9,1 13,1 13,5"/><polyline points="1,9 1,13 5,13"/><polyline points="9,13 13,13 13,9"/></svg>`;
     const ICON_EXIT  = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,1 5,5 1,5"/><polyline points="9,1 9,5 13,5"/><polyline points="1,9 5,9 5,13"/><polyline points="13,9 9,9 9,13"/></svg>`;
+
+    function getSiteFullscreenRoot() {
+      try {
+        if (window.top !== window && window.top && window.top.document) return window.top;
+      } catch (_) {}
+      return window;
+    }
+
+    function closeGalleryImageViewOnly() {
+      const overlay = document.getElementById("galleryImageOverlay");
+      if (!overlay) return;
+      overlay.classList.remove("is-visible");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+
+    async function openGalleryImageSiteFullscreen(dataUrl) {
+      const overlay = document.getElementById("galleryImageOverlay");
+      const imgEl = document.getElementById("galleryImageOverlayImg");
+      if (!overlay || !imgEl) return;
+      imgEl.src = dataUrl;
+      overlay.classList.add("is-visible");
+      overlay.setAttribute("aria-hidden", "false");
+      const root = getSiteFullscreenRoot();
+      try {
+        if (root.document.fullscreenElement == null) {
+          await root.document.documentElement.requestFullscreen();
+        }
+      } catch (e) {
+        console.warn("Fullscreen:", e);
+      }
+    }
+
+    function attachGalleryFullscreenSync() {
+      try {
+        const root = getSiteFullscreenRoot();
+        if (root.__hypoLibGalleryFsHook) return;
+        root.__hypoLibGalleryFsHook = true;
+        root.document.addEventListener("fullscreenchange", () => {
+          if (!root.document.fullscreenElement) {
+            const ov = document.getElementById("galleryImageOverlay");
+            if (ov) {
+              ov.classList.remove("is-visible");
+              ov.setAttribute("aria-hidden", "true");
+            }
+          }
+        });
+      } catch (_) {}
+    }
+
+    function closeAllGalleryMenus() {
+      document.querySelectorAll(".gallery-menu-dropdown.is-open").forEach((d) => d.classList.remove("is-open"));
+      document.querySelectorAll(".gallery-menu-btn[aria-expanded='true']").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    }
+
+    document.addEventListener("mousedown", (e) => {
+      if (!e.target.closest(".gallery-item-menu-wrap")) closeAllGalleryMenus();
+    });
+
+    async function copyGalleryImage(dataUrl) {
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    function downloadGalleryImage(dataUrl, photoId) {
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      let ext = "png";
+      if (dataUrl.startsWith("data:image/jpeg")) ext = "jpg";
+      else if (dataUrl.startsWith("data:image/webp")) ext = "webp";
+      a.download = `hypo-gallery-${photoId}.${ext}`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function deleteGalleryPhoto(entryId, photoId) {
+      const lib = getLibrary();
+      const entry = lib.find((x) => x.id === entryId);
+      if (!entry || !Array.isArray(entry.gallery)) return;
+      entry.gallery = entry.gallery.filter((p) => p.id !== photoId);
+      saveLibrary(lib);
+      renderGalleryGrid();
+    }
 
     function getLibrary() {
       try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
@@ -386,14 +625,95 @@
         grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No photos yet. Use Capture → Take a photo on a project.</div>';
         return;
       }
-      for (const { photo } of items) {
+      for (const { entry, photo } of items) {
         const wrap = document.createElement("div");
         wrap.className = "gallery-item";
+
+        const menuWrap = document.createElement("div");
+        menuWrap.className = "gallery-item-menu-wrap";
+        const menuBtn = document.createElement("button");
+        menuBtn.type = "button";
+        menuBtn.className = "gallery-menu-btn";
+        menuBtn.setAttribute("aria-label", "Photo actions");
+        menuBtn.setAttribute("aria-haspopup", "true");
+        menuBtn.setAttribute("aria-expanded", "false");
+        for (let d = 0; d < 3; d++) menuBtn.appendChild(document.createElement("span"));
+        const drop = document.createElement("div");
+        drop.className = "gallery-menu-dropdown";
+        drop.setAttribute("role", "menu");
+
+        const btnCopy = document.createElement("button");
+        btnCopy.type = "button";
+        btnCopy.textContent = "Copy image";
+        btnCopy.setAttribute("role", "menuitem");
+        btnCopy.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          closeAllGalleryMenus();
+          menuBtn.setAttribute("aria-expanded", "false");
+          const ok = await copyGalleryImage(photo.image);
+          if (!ok) alert("Could not copy image. Your browser may not support copying images from the clipboard.");
+        });
+
+        const btnDl = document.createElement("button");
+        btnDl.type = "button";
+        btnDl.textContent = "Download";
+        btnDl.setAttribute("role", "menuitem");
+        btnDl.addEventListener("click", (e) => {
+          e.stopPropagation();
+          closeAllGalleryMenus();
+          menuBtn.setAttribute("aria-expanded", "false");
+          downloadGalleryImage(photo.image, photo.id);
+        });
+
+        const btnDel = document.createElement("button");
+        btnDel.type = "button";
+        btnDel.className = "gallery-menu-del";
+        btnDel.textContent = "Delete";
+        btnDel.setAttribute("role", "menuitem");
+        btnDel.addEventListener("click", (e) => {
+          e.stopPropagation();
+          closeAllGalleryMenus();
+          menuBtn.setAttribute("aria-expanded", "false");
+          if (confirm("Delete this photo from the gallery?")) deleteGalleryPhoto(entry.id, photo.id);
+        });
+
+        drop.appendChild(btnCopy);
+        drop.appendChild(btnDl);
+        drop.appendChild(btnDel);
+        menuBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const willOpen = !drop.classList.contains("is-open");
+          closeAllGalleryMenus();
+          if (willOpen) {
+            drop.classList.add("is-open");
+            menuBtn.setAttribute("aria-expanded", "true");
+          } else {
+            menuBtn.setAttribute("aria-expanded", "false");
+          }
+        });
+        menuWrap.appendChild(menuBtn);
+        menuWrap.appendChild(drop);
+
+        const fsBtn = document.createElement("button");
+        fsBtn.type = "button";
+        fsBtn.className = "gallery-item-fs-btn";
+        fsBtn.title = "Full screen";
+        fsBtn.setAttribute("aria-label", "View full screen");
+        fsBtn.innerHTML = ICON_ENTER;
+        fsBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openGalleryImageSiteFullscreen(photo.image);
+        });
+
         const img = document.createElement("img");
+        img.className = "gallery-item-img";
         img.src = photo.image;
         img.alt = "Captured";
         img.decoding = "async";
+
         wrap.appendChild(img);
+        wrap.appendChild(menuWrap);
+        wrap.appendChild(fsBtn);
         grid.appendChild(wrap);
       }
     }
@@ -608,6 +928,11 @@
       }
     });
 
+    document.getElementById("galleryImageOverlay")?.querySelector(".gallery-fs-overlay-close")?.addEventListener("click", () => {
+      closeGalleryImageViewOnly();
+    });
+
+    attachGalleryFullscreenSync();
     render();
   </script>
 </body>
