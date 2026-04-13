@@ -1897,6 +1897,7 @@ function draw() {
   background(0);
   translate(width / 2 + offsetX, height / 2 + offsetY);
   scale(zoomLevel * baseScale);
+  scale(1, -1);
 
   const s = zoomLevel * baseScale;
   if (s > 0) {
