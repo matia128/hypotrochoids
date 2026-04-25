@@ -13,41 +13,10 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       overflow: hidden;
     }
-    #capturePanel {
-      display: none;
-      position: fixed;
-      top: 40px;
-      right: 20px;
-      min-width: 300px;
-      max-width: min(300px, calc(100vw - 40px));
-      box-sizing: border-box;
-      padding: 10px 12px;
-      background: rgba(40, 40, 40, 0.75);
-      border-radius: 8px;
-      backdrop-filter: blur(6px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      z-index: 10;
-    }
-    #capturePanel.visible {
-      display: block;
-    }
-    #capturePanelTitle {
-      font-size: 13px;
-      margin: 0 0 10px;
-      color: #eee;
-    }
-    #capturePhotoBtn {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 4px;
-      border: 1px solid #555;
-      background: #2563eb;
-      color: #fff;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    #capturePhotoBtn:hover {
-      background: #3b82f6;
+    body > canvas {
+      position: fixed !important;
+      inset: 0;
+      z-index: 0;
     }
     #ui {
       position: fixed;
@@ -478,7 +447,7 @@
       pointer-events: none;
       display: none;
       white-space: nowrap;
-      z-index: 1000;
+      z-index: 250;
     }
     .rho-speed {
       display: flex;
@@ -528,7 +497,7 @@
       background: rgba(59, 130, 246, 0.46);
     }
     .step-btn:hover:not(.active) { background: #333; color: #fff; }
-    #drawBtn, #animPlayBtn {
+    #drawBtn, #animPlayBtn, #animDrawBtn {
       width: 100%;
       padding: 4px 10px;
       min-height: 26px;
@@ -545,9 +514,12 @@
     #drawBtn {
       margin-top: 15px;
     }
-    #animPlayResetRow {
+    #animPlayResetRow,
+    #animBackRow {
       display: flex;
       gap: 4px;
+    }
+    #animPlayResetRow {
       margin-top: 15px;
     }
     #animPlayResetRow #animPlayBtn {
@@ -556,7 +528,20 @@
       width: auto;
       margin-top: 0;
     }
-    #animResetBtn {
+    #animBackRow #animDrawBtn {
+      flex: 1;
+      min-width: 0;
+      width: auto;
+      background: #222;
+      color: #ccc;
+      border: 1px solid #555;
+    }
+    #animBackRow {
+      margin-top: 8px;
+    }
+    #animResetBtn,
+    #animPlayAllBtn,
+    #animBackBtn {
       padding: 4px 10px;
       min-height: 26px;
       display: flex;
@@ -572,8 +557,20 @@
       flex-shrink: 0;
       box-sizing: border-box;
     }
-    #animResetBtn:hover {
+    #animPlayAllBtn.active {
+      border-color: rgba(96, 165, 250, 0.5);
+      background: rgba(59, 130, 246, 0.46);
+      color: #fff;
+    }
+    #animDrawBtn:hover,
+    #animResetBtn:hover,
+    #animPlayAllBtn:hover,
+    #animBackBtn:hover {
       background: #333;
+    }
+    #animPlayAllBtn.active:hover {
+      background: rgba(96, 165, 250, 0.56);
+      color: #fff;
     }
     #animSpeedControl {
       position: absolute;
@@ -658,10 +655,9 @@
       background: rgba(60,60,60,0.9);
       color: #fff;
     }
+    #captureBtn,
     #fullscreenBtn {
       position: fixed;
-      bottom: 16px;
-      right: 16px;
       z-index: 100;
       background: rgba(40,40,40,0.75);
       color: #ccc;
@@ -676,9 +672,38 @@
       justify-content: center;
       padding: 0;
     }
+    #captureBtn {
+      top: 16px;
+      right: 16px;
+    }
+    #fullscreenBtn {
+      bottom: 16px;
+      right: 16px;
+    }
+    #captureBtn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
     #fullscreenBtn:hover {
       background: rgba(60,60,60,0.9);
       color: #fff;
+    }
+    #captureBtn:not(:disabled):hover {
+      background: rgba(60,60,60,0.9);
+      color: #fff;
+    }
+    #captureFlash {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: #fff;
+      opacity: 0;
+      transition: opacity 29ms ease-out;
+    }
+    #captureFlash.visible {
+      opacity: 0.42;
+      transition: opacity 8ms ease-out;
     }
     #libraryOverlay {
       position: fixed;
@@ -942,16 +967,17 @@
           <button type="button" id="animPlayBtn">Animate</button>
           <button type="button" id="animResetBtn">Reset</button>
         </div>
-        <button type="button" id="animBackBtn" style="width:100%;margin-top:8px;padding:6px;background:#222;color:#ccc;border:1px solid #555;border-radius:4px;cursor:pointer;font-size:12px;">← Back</button>
+        <div id="animBackRow">
+          <button type="button" id="animBackBtn">← Back</button>
+          <button type="button" id="animDrawBtn">Draw</button>
+          <button type="button" id="animPlayAllBtn">▶ Play All</button>
+        </div>
       </div>
     </div>
 
-  <div id="capturePanel" aria-label="Capture">
-    <div id="capturePanelTitle">Capture</div>
-    <button type="button" id="capturePhotoBtn">Take a photo</button>
-  </div>
-
+  <button id="captureBtn" title="Capture to gallery" aria-label="Capture to gallery" tabindex="-1"></button>
   <button id="fullscreenBtn" title="Toggle fullscreen" tabindex="-1"></button>
+  <div id="captureFlash" aria-hidden="true"></div>
   <div id="libraryOverlay">
     <iframe src="about:blank" title="Library" allow="fullscreen"></iframe>
     <button id="libraryOverlayFsBtn" title="Toggle fullscreen" tabindex="-1"></button>

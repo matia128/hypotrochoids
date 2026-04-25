@@ -322,7 +322,7 @@ function applyRhoPopoverValues(state) {
   if (state.animValue != null) state.animValue = parseFloat(s.value);
   updateRhoTickLabels(state);
   closeRhoPopover();
-  computeFromUI(false, false, true);
+  computeFromUI(false, false, false);
 }
 
 /** Center ⋮ horizontally between » and #ui right edge; does not change any other layout. */
@@ -435,19 +435,7 @@ function addPlayAllButton(container) {
   playBtn.id = "playAllBtn";
   playBtn.textContent = "▶ Play All";
   playBtn.addEventListener("click", () => {
-    const anyActive = rhoAnimStates.some(s => s && s.active);
-    if (anyActive) {
-      stopAllRhoAnimations();
-    } else {
-      for (const state of rhoAnimStates) {
-        if (state) {
-          state.active = true;
-          if (state.button) state.button.classList.add("active");
-        }
-      }
-      startRhoAnimationLoop();
-    }
-    updatePlayAllBtn(playBtn);
+    togglePlayAllRhos();
   });
 
   const playAllMenuBtn = document.createElement("button");
@@ -468,14 +456,32 @@ function addPlayAllButton(container) {
   row.appendChild(playBtn);
   row.appendChild(playAllMenuBtn);
   container.appendChild(row);
+  updatePlayAllBtn();
 }
 
-function updatePlayAllBtn(btn) {
-  if (!btn) btn = document.getElementById("playAllBtn");
-  if (!btn) return;
+function togglePlayAllRhos() {
   const anyActive = rhoAnimStates.some(s => s && s.active);
-  btn.classList.toggle("active", anyActive);
-  btn.textContent = anyActive ? "⏹ Stop All" : "▶ Play All";
+  if (anyActive) {
+    stopAllRhoAnimations();
+  } else {
+    for (const state of rhoAnimStates) {
+      if (state) {
+        state.active = true;
+        if (state.button) state.button.classList.add("active");
+      }
+    }
+    startRhoAnimationLoop();
+  }
+  updatePlayAllBtn();
+}
+
+function updatePlayAllBtn() {
+  const anyActive = rhoAnimStates.some(s => s && s.active);
+  [document.getElementById("playAllBtn"), document.getElementById("animPlayAllBtn")].forEach(btn => {
+    if (!btn) return;
+    btn.classList.toggle("active", anyActive);
+    btn.textContent = anyActive ? "⏹ Stop All" : "▶ Play All";
+  });
 }
 
 
@@ -729,18 +735,39 @@ function rhoAnimationStep(timestamp) {
   }
 }
 
-function randomizeColors() {
+function randomizeColors(allowAnimColorReset = false) {
   if (colorMode === 'bounce') {
     colorState.initialized = false;
-    computeFromUI(true, false, true, true);
+    computeFromUI(true, false, false, true, allowAnimColorReset);
   } else if (colorMode === 'rainbow') {
     rainbowOffset = Math.floor(Math.random() * 1530);
-    computeFromUI(false, false, true, true);
+    computeFromUI(false, false, false, true);
   } else if (colorMode === 'mono') {
     monoHue = Math.floor(Math.random() * 360);
     const hs = document.getElementById("hueSlider");
     if (hs) hs.value = monoHue;
-    computeFromUI(false, false, true, true);
+    computeFromUI(false, false, false, true);
+  }
+}
+
+function performDrawAction() {
+  const revealedBeforeDraw = animMode ? animSegmentsRevealed : null;
+  if (randomRhosActive) {
+    for (const state of rhoAnimStates) {
+      if (!state) continue;
+      const v = randomRhoForSlider(state.slider);
+      state.slider.value = String(v);
+      state.animValue = null;
+      state.dir = Math.random() < 0.5 ? 1 : -1;
+    }
+  }
+  if (randomColorActive) {
+    randomizeColors(animMode);
+  }
+  computeFromUI(false, false, false);
+  if (animMode) {
+    animSegmentsRevealed = Math.min(revealedBeforeDraw ?? segmentsData.length, segmentsData.length);
+    redraw();
   }
 }
 
@@ -911,30 +938,33 @@ function captureThumbnail() {
   return thumb.toDataURL('image/jpeg', 0.75);
 }
 
-/** 16:9 crop, up to 4K, WebP or high-Q JPEG — library gallery (thumbnails use captureThumbnail). */
-function captureGalleryPhoto() {
+/** 16:9 render, WebP or high-Q JPEG — library gallery (thumbnails use captureThumbnail). */
+function captureGalleryPhoto(maxW = 3840, maxH = 2160, quality = 0.98) {
   const src = document.querySelector('canvas');
   if (!src) return null;
-  const srcW = src.width;
-  const srcH = src.height;
   const targetAspect = 16 / 9;
-  const srcAspect = srcW / srcH;
-  let sx = 0, sy = 0, sW = srcW, sH = srcH;
-  if (srcAspect > targetAspect) {
-    sW = srcH * targetAspect;
-    sx = (srcW - sW) / 2;
-  } else if (srcAspect < targetAspect) {
-    sH = srcW / targetAspect;
-    sy = (srcH - sH) / 2;
+  const logicalW = width || src.clientWidth || src.width;
+  const logicalH = height || src.clientHeight || src.height;
+  if (!logicalW || !logicalH) return null;
+
+  let renderW = logicalW;
+  let renderH = logicalH;
+  if (logicalW / logicalH > targetAspect) {
+    renderH = logicalW / targetAspect;
+  } else if (logicalW / logicalH < targetAspect) {
+    renderW = logicalH * targetAspect;
   }
-  let outW = sW;
-  let outH = sH;
-  const MAX_W = 3840;
-  const MAX_H = 2160;
-  if (outW > MAX_W || outH > MAX_H) {
-    const scale = Math.min(MAX_W / outW, MAX_H / outH);
+
+  const pixelScale = src.width / logicalW || 1;
+  let outW = renderW * pixelScale;
+  let outH = renderH * pixelScale;
+  if (outW > maxW || outH > maxH) {
+    const scale = Math.min(maxW / outW, maxH / outH);
     outW = Math.max(1, Math.round(outW * scale));
     outH = Math.max(1, Math.round(outH * scale));
+  } else {
+    outW = Math.max(1, Math.round(outW));
+    outH = Math.max(1, Math.round(outH));
   }
   const c = document.createElement('canvas');
   c.width = outW;
@@ -942,12 +972,51 @@ function captureGalleryPhoto() {
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(src, sx, sy, sW, sH, 0, 0, outW, outH);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, outW, outH);
+
+  const renderScale = outW / renderW;
+  const s = zoomLevel * baseScale;
+  ctx.save();
+  ctx.translate(outW / 2 + offsetX * renderScale, outH / 2 + offsetY * renderScale);
+  ctx.scale(s * renderScale, -s * renderScale);
+  ctx.lineCap = 'square';
+  ctx.lineJoin = 'miter';
+  ctx.lineWidth = s > 0 ? penWidth / s : penWidth;
+  const maxSeg = animMode ? Math.floor(animSegmentsRevealed) : segmentsData.length;
+  for (let si = 0; si < maxSeg; si++) {
+    const seg = segmentsData[si];
+    if (!seg) continue;
+    const [r, g, b] = seg.color;
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${lineOpacity})`;
+    ctx.beginPath();
+    for (let i = 0; i < seg.xs.length; i++) {
+      if (i === 0) ctx.moveTo(seg.xs[i], seg.ys[i]);
+      else ctx.lineTo(seg.xs[i], seg.ys[i]);
+    }
+    ctx.stroke();
+  }
+  const frac = animMode ? animSegmentsRevealed - maxSeg : 0;
+  if (frac > 0 && maxSeg < segmentsData.length) {
+    const seg = segmentsData[maxSeg];
+    if (seg) {
+      const [r, g, b] = seg.color;
+      const n = Math.floor(frac * seg.xs.length);
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${lineOpacity})`;
+      ctx.beginPath();
+      for (let i = 0; i <= n; i++) {
+        if (i === 0) ctx.moveTo(seg.xs[i], seg.ys[i]);
+        else ctx.lineTo(seg.xs[i], seg.ys[i]);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
   try {
-    const webp = c.toDataURL('image/webp', 0.98);
+    const webp = c.toDataURL('image/webp', quality);
     if (webp.startsWith('data:image/webp')) return webp;
   } catch (_) { /* encode unsupported */ }
-  return c.toDataURL('image/jpeg', 0.98);
+  return c.toDataURL('image/jpeg', quality);
 }
 
 function applyCanvasPixelDensity() {
@@ -965,25 +1034,124 @@ function saveLibrary(lib) {
   localStorage.setItem('hypo_library', JSON.stringify(lib));
 }
 
-function addPhotoToLibraryEntry(entryId, dataUrl) {
-  const lib = getLibrary();
-  const e = lib.find(x => x.id === entryId);
-  if (!e || !dataUrl) return false;
-  if (!e.gallery) e.gallery = [];
-  e.gallery.unshift({
-    id: Date.now().toString(),
-    image: dataUrl,
-    createdAt: new Date().toISOString(),
-  });
-  saveLibrary(lib);
-  return true;
+function getStandaloneGallery() {
+  try { return JSON.parse(localStorage.getItem('hypo_gallery') || '[]'); }
+  catch { return []; }
 }
 
-function setCapturePanelVisible(show, entryId) {
-  captureTargetEntryId = show ? entryId : null;
-  const panel = document.getElementById("capturePanel");
-  if (!panel) return;
-  panel.classList.toggle("visible", !!show);
+function saveStandaloneGallery(gallery) {
+  localStorage.setItem('hypo_gallery', JSON.stringify(gallery));
+}
+
+function openGalleryDb() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("IndexedDB is unavailable"));
+      return;
+    }
+    const req = indexedDB.open("hypo_gallery_db", 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos", { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("Could not open gallery database"));
+  });
+}
+
+async function saveIndexedGalleryPhoto(dataUrl) {
+  const photo = createGalleryPhoto(dataUrl);
+  const db = await openGalleryDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("photos", "readwrite");
+    tx.objectStore("photos").put(photo);
+    tx.oncomplete = () => {
+      db.close();
+      resolve(true);
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error || new Error("Could not save gallery photo"));
+    };
+  });
+}
+
+function createGalleryPhoto(dataUrl) {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    image: dataUrl,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+async function addStandaloneGalleryPhoto(dataUrl) {
+  if (!dataUrl) return false;
+  const gallery = getStandaloneGallery();
+  gallery.unshift(createGalleryPhoto(dataUrl));
+  try {
+    saveStandaloneGallery(gallery);
+    return true;
+  } catch (err) {
+    console.warn("Could not save gallery photo to localStorage, trying IndexedDB:", err);
+  }
+  try {
+    return await saveIndexedGalleryPhoto(dataUrl);
+  } catch (err) {
+    console.warn("Could not save gallery photo:", err);
+    return false;
+  }
+}
+
+function addPhotoToLibraryEntry(entryId, dataUrl) {
+  const lib = getLibrary();
+  const e = lib.find(x => String(x.id) === String(entryId));
+  if (!e || !dataUrl) return false;
+  const previousGallery = Array.isArray(e.gallery) ? e.gallery : [];
+  e.gallery = previousGallery.slice();
+  e.gallery.unshift(createGalleryPhoto(dataUrl));
+  try {
+    saveLibrary(lib);
+    return true;
+  } catch (err) {
+    e.gallery = previousGallery;
+    console.warn("Could not save project gallery photo:", err);
+    return false;
+  }
+}
+
+async function saveGalleryCapture(dataUrl) {
+  if (!dataUrl) return false;
+  if (captureTargetEntryId && addPhotoToLibraryEntry(captureTargetEntryId, dataUrl)) return true;
+  return await addStandaloneGalleryPhoto(dataUrl);
+}
+
+function setCaptureTargetEntry(entryId) {
+  const lib = getLibrary();
+  captureTargetEntryId = lib.some(x => String(x.id) === String(entryId)) ? entryId : null;
+  updateCaptureButtonState();
+}
+
+function updateCaptureButtonState() {
+  const btn = document.getElementById("captureBtn");
+  if (!btn) return;
+  btn.disabled = false;
+  btn.title = "Capture to gallery";
+  btn.setAttribute("aria-label", btn.title);
+}
+
+function flashCapture() {
+  const flash = document.getElementById("captureFlash");
+  if (!flash) return;
+  flash.classList.remove("visible");
+  void flash.offsetWidth;
+  flash.classList.add("visible");
+  setTimeout(() => flash.classList.remove("visible"), 17);
+}
+
+function waitForCaptureFlashPaint() {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
 }
 
 function renderLibrary() {
@@ -1066,6 +1234,7 @@ function saveShape() {
   const lib = getLibrary();
   lib.unshift(entry);
   saveLibrary(lib);
+  setCaptureTargetEntry(entry.id);
   lastSavedShapeKey = JSON.stringify(snapshot.params);
   pendingSaveSnapshot = null;
   setSaveButtonSaved(true);
@@ -1125,12 +1294,12 @@ function encodeShapeToURL(params) {
 function loadFromURL() {
   const hash = location.hash.slice(1);
   if (!hash) {
-    setCapturePanelVisible(false);
+    setCaptureTargetEntry(null);
     return;
   }
   const p = new URLSearchParams(hash);
   if (!p.has('freqs')) {
-    setCapturePanelVisible(false);
+    setCaptureTargetEntry(null);
     return;
   }
   applyShapeParams({
@@ -1157,10 +1326,7 @@ function loadFromURL() {
       initialized: p.get('ci') === '1',
     },
   });
-  const lid = p.get("lid");
-  const capOn = p.get("cap") === "1";
-  if (capOn && lid) setCapturePanelVisible(true, lid);
-  else setCapturePanelVisible(false);
+  setCaptureTargetEntry(p.get("lid"));
   redraw();
 }
 
@@ -1172,7 +1338,7 @@ function setup() {
   applyCanvasPixelDensity();
   noFill();
   strokeCap(SQUARE);
-  computeFromUI(true, true, true);
+  computeFromUI(true, true, false);
 
   const freqInfoIcon = document.getElementById("freqInfoIcon");
   if (freqInfoIcon) {
@@ -1275,7 +1441,7 @@ function setup() {
         randomColorActive = false;
       }
       updatePaletteUI();
-      computeFromUI(false, false, true, true);
+      computeFromUI(false, false, false, true);
     });
   });
 
@@ -1303,7 +1469,7 @@ function setup() {
   if (hueSlider) {
     hueSlider.addEventListener("input", () => {
       monoHue = parseInt(hueSlider.value, 10);
-      computeFromUI(false, false, true, true);
+      computeFromUI(false, false, false, true);
     });
   }
 
@@ -1313,19 +1479,19 @@ function setup() {
     colorStepSlider.addEventListener("input", () => {
       const v = snapColorStepSlider(colorStepSlider);
       colorStepVal.value = String(v);
-      computeFromUI(false, false, true, true);
+      computeFromUI(false, false, false, true);
     });
     colorStepVal.addEventListener("input", () => {
       const v = Math.min(1000, Math.max(1, parseInt(colorStepVal.value, 10) || 1));
       colorStepVal.value = String(v);
       colorStepSlider.value = String(sliderPosFromColorStep(v));
-      computeFromUI(false, false, true, true);
+      computeFromUI(false, false, false, true);
     });
     colorStepVal.addEventListener("change", () => {
       const v = Math.min(1000, Math.max(1, parseInt(colorStepVal.value, 10) || 1));
       colorStepVal.value = String(v);
       colorStepSlider.value = String(sliderPosFromColorStep(v));
-      computeFromUI(false, false, true, true);
+      computeFromUI(false, false, false, true);
     });
   }
 
@@ -1388,27 +1554,15 @@ function setup() {
   });
 
   const drawBtn = document.getElementById("drawBtn");
-  drawBtn.addEventListener("click", () => {
-    if (randomRhosActive) {
-      for (const state of rhoAnimStates) {
-        if (!state) continue;
-        const v = randomRhoForSlider(state.slider);
-        state.slider.value = String(v);
-        state.animValue = null;
-        state.dir = Math.random() < 0.5 ? 1 : -1;
-      }
-    }
-    if (randomColorActive) {
-      randomizeColors();
-    }
-    computeFromUI(randomColorActive && colorMode === "bounce", false, true);
-  });
+  drawBtn.addEventListener("click", performDrawAction);
 
   const uiMain = document.getElementById("uiMain");
   const uiAnim = document.getElementById("uiAnim");
   const animSpeedValue = document.getElementById("animSpeedValue");
   const animPlayBtn = document.getElementById("animPlayBtn");
   const animResetBtn = document.getElementById("animResetBtn");
+  const animDrawBtn = document.getElementById("animDrawBtn");
+  const animPlayAllBtn = document.getElementById("animPlayAllBtn");
   const animBackBtn = document.getElementById("animBackBtn");
   const animSpeedDown = document.getElementById("animSpeedDown");
   const animSpeedUp = document.getElementById("animSpeedUp");
@@ -1426,7 +1580,7 @@ function setup() {
 
   document.getElementById("animateBtn").addEventListener("click", () => {
     // Same as Draw: do not re-randomize ρ or palette here — preserve the curve and colors on screen
-    computeFromUI(false, false, true);
+    computeFromUI(false, false, false);
     animMode = true;
     animSegmentsRevealed = segmentsData.length;
     stopAnimPlayback();
@@ -1443,6 +1597,15 @@ function setup() {
       animSegmentsRevealed = 0;
       redraw();
     });
+  }
+
+  if (animDrawBtn) {
+    animDrawBtn.addEventListener("click", performDrawAction);
+  }
+
+  if (animPlayAllBtn) {
+    animPlayAllBtn.addEventListener("click", togglePlayAllRhos);
+    updatePlayAllBtn();
   }
 
   if (animBackBtn) {
@@ -1516,7 +1679,7 @@ function setup() {
     btn.addEventListener("click", () => {
       currentStep = val;
       stepButtons.forEach(b => b.classList.toggle("active", b === btn));
-      computeFromUI(false, false, true);
+      computeFromUI(false, false, false);
     });
   });
 
@@ -1529,16 +1692,20 @@ function setup() {
       libraryOverlay.classList.add("visible");
     }
   });
-  const capturePhotoBtn = document.getElementById("capturePhotoBtn");
-  if (capturePhotoBtn) {
-    capturePhotoBtn.addEventListener("click", () => {
-      if (!captureTargetEntryId) return;
-      const url = captureGalleryPhoto();
-      if (!url) return;
-      if (addPhotoToLibraryEntry(captureTargetEntryId, url)) {
-        const t = capturePhotoBtn.textContent;
-        capturePhotoBtn.textContent = "Saved";
-        setTimeout(() => { capturePhotoBtn.textContent = t; }, 1200);
+  const captureBtn = document.getElementById("captureBtn");
+  if (captureBtn) {
+    captureBtn.addEventListener("click", async () => {
+      flashCapture();
+      try {
+        await waitForCaptureFlashPaint();
+        let saved = await saveGalleryCapture(captureGalleryPhoto(3072, 1728, 0.95));
+        if (!saved) saved = await saveGalleryCapture(captureGalleryPhoto(1920, 1080, 0.9));
+        if (!saved) saved = await saveGalleryCapture(captureGalleryPhoto(1280, 720, 0.85));
+        if (!saved) saved = await saveGalleryCapture(captureGalleryPhoto(960, 540, 0.8));
+        if (!saved) updateCaptureButtonState();
+      } catch (err) {
+        console.warn("Capture failed:", err);
+        updateCaptureButtonState();
       }
     });
   }
@@ -1558,10 +1725,9 @@ function setup() {
         document.getElementById("fullscreenBtn")?.focus();
       }
       let h = e.data.hash;
-      if (e.data.capture && e.data.entryId) {
+      if (e.data.entryId) {
         const hp = new URLSearchParams(h);
         hp.set("lid", e.data.entryId);
-        hp.set("cap", "1");
         h = hp.toString();
       }
       const prev = location.hash;
@@ -1613,7 +1779,7 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   applyCanvasPixelDensity();
   // Keep baseScale in sync with the new canvas size (otherwise the next computeFromUI — e.g. when ρ Play runs — jumps the fit/zoom)
-  computeFromUI(false, false, true);
+  computeFromUI(false, false, false);
   redraw();
 }
 
@@ -1659,8 +1825,8 @@ function lcm(a, b) {
   return Math.abs(a * b) / gcd(a, b);
 }
 
-function computeFromUI(resetColors = false, resetView = false, snapRhosValues = true, preserveRhos = false) {
-  if (animMode && resetColors) {
+function computeFromUI(resetColors = false, resetView = false, snapRhosValues = false, preserveRhos = false, allowAnimColorReset = false) {
+  if (animMode && resetColors && !allowAnimColorReset) {
     resetColors = false;
   }
   const input = document.getElementById("freqs");
@@ -1744,7 +1910,7 @@ function computeFromUI(resetColors = false, resetView = false, snapRhosValues = 
             slider.value = String(snapped);
             if (state.animValue != null) state.animValue = snapped;
             showSliderTooltip(slider);
-            computeFromUI(false, false, true);
+            computeFromUI(false, false, false);
           });
 
           const menuBtn = document.createElement("button");
@@ -2005,6 +2171,7 @@ function mouseDragged() {
 const ICON_ENTER = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 1,1 5,1"/><polyline points="9,1 13,1 13,5"/><polyline points="1,9 1,13 5,13"/><polyline points="9,13 13,13 13,9"/></svg>`;
 // Exit fullscreen: elbows near center, arms point outward (compress)
 const ICON_EXIT  = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,1 5,5 1,5"/><polyline points="9,1 9,5 13,5"/><polyline points="1,9 5,9 5,13"/><polyline points="13,9 9,9 9,13"/></svg>`;
+const ICON_CAMERA = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5.2 4.2 6.3 2.8h3.4l1.1 1.4h2.1c.7 0 1.2.5 1.2 1.2v6.6c0 .7-.5 1.2-1.2 1.2H3.1c-.7 0-1.2-.5-1.2-1.2V5.4c0-.7.5-1.2 1.2-1.2h2.1Z"/><circle cx="8" cy="8.6" r="2.4"/></svg>`;
 const FULLSCREEN_STATE_KEY = "hypo_fullscreen_state";
 
 document.getElementById("closeUiBtn").addEventListener("click", () => {
@@ -2027,7 +2194,9 @@ function toggleFullscreen() {
 }
 
 const _fsBtn = document.getElementById("fullscreenBtn");
+const _captureBtn = document.getElementById("captureBtn");
 const _libraryOverlayFsBtn = document.getElementById("libraryOverlayFsBtn");
+if (_captureBtn) _captureBtn.innerHTML = ICON_CAMERA;
 function updateFullscreenButtonIcon() {
   const isFs = !!document.fullscreenElement;
   if (_fsBtn) _fsBtn.innerHTML = isFs ? ICON_EXIT : ICON_ENTER;
@@ -2100,8 +2269,7 @@ document.addEventListener("keydown", (e) => {
   }
   if (e.key === " " && !isTyping) {
     e.preventDefault();
-    const playAllBtn = document.getElementById("playAllBtn");
-    if (playAllBtn) playAllBtn.click();
+    togglePlayAllRhos();
   }
 });
 
@@ -2112,22 +2280,8 @@ function keyPressed() {
     offsetY = 0;
     return false;
   } else if (keyCode === ENTER) {
-    if (animMode) {
-      return false;
-    }
-    if (randomRhosActive) {
-      for (const state of rhoAnimStates) {
-        if (!state) continue;
-        const v = randomRhoForSlider(state.slider);
-        state.slider.value = String(v);
-        state.animValue = null;
-        state.dir = Math.random() < 0.5 ? 1 : -1;
-      }
-    }
-    if (randomColorActive) {
-      randomizeColors();
-    }
-    computeFromUI(randomColorActive && colorMode === "bounce", false, true);
+    performDrawAction();
+    return false;
   }
 }
 
