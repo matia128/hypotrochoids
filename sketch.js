@@ -1718,6 +1718,10 @@ function setup() {
       libraryOverlay.classList.remove("visible");
       if (libraryIframe) libraryIframe.src = "about:blank";
       document.getElementById("fullscreenBtn")?.focus();
+    } else if (e.data && e.data.type === "hypo:fullscreen") {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.warn("Fullscreen:", err));
+      }
     } else if (e.data && e.data.type === "hypo:open" && e.data.hash) {
       if (libraryOverlay) {
         libraryOverlay.classList.remove("visible");
