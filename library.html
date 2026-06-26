@@ -25,6 +25,9 @@
       max-width: 1100px;
       margin: 24px auto;
       padding: 0 8px;
+      min-height: calc(100vh - 48px);
+      display: flex;
+      flex-direction: column;
     }
     .top {
       position: relative;
@@ -50,26 +53,32 @@
     .btn:hover { background: #333; }
     #backBtn {
       position: absolute;
-      left: -52px;
-      top: 50%;
-      transform: translateY(calc(-50% - 4px));
+      left: -40px;
+      top: 0;
+      bottom: 0;
       border: none;
       background: transparent;
       color: #ccc;
-      font-size: 26px;
-      font-weight: 900;
-      line-height: 1;
       cursor: pointer;
-      padding: 6px 10px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 0;
     }
     #backBtn:hover {
       color: #fff;
+    }
+    #backBtn svg {
+      display: block;
+      height: 86%;
+      width: auto;
+      transform: translateY(2px);
     }
     .lib-tabs {
       display: flex;
       align-items: baseline;
       gap: 16px;
-      margin-bottom: 10px;
     }
     .lib-tab {
       background: none;
@@ -79,6 +88,7 @@
       font: inherit;
       font-size: 20px;
       font-weight: 600;
+      line-height: 1;
       cursor: pointer;
       color: #888;
     }
@@ -91,7 +101,9 @@
     .hint {
       color: #aaa;
       font-size: 12px;
-      margin-bottom: 14px;
+      margin-top: auto;
+      padding-top: 20px;
+      text-align: left;
     }
     #list {
       display: grid;
@@ -105,6 +117,15 @@
       border-radius: 8px;
       padding: 16px;
       text-align: center;
+    }
+    .empty-message {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: #888;
+      font-size: 24px;
+      font-weight: 500;
+      line-height: 1.4;
+      padding: 72px 16px;
     }
     #galleryGrid {
       display: grid;
@@ -234,6 +255,86 @@
     }
     .gallery-item-fs-btn svg {
       display: block;
+    }
+    .gallery-item-select {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      z-index: 4;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      margin: 0;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 3px;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .gallery-item-select:hover {
+      border-color: #fff;
+    }
+    .gallery-item-select.is-selected {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+    .gallery-item-select svg {
+      display: none;
+    }
+    .gallery-item-select.is-selected svg {
+      display: block;
+    }
+    #gallerySelectionBar {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%) translateY(180%);
+      z-index: 9000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: rgba(28, 28, 28, 0.98);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      transition: transform 220ms ease;
+      pointer-events: none;
+    }
+    #gallerySelectionBar.is-visible {
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+    #gallerySelectionBar .sel-count {
+      font-size: 12px;
+      color: #ccc;
+      white-space: nowrap;
+    }
+    #gallerySelectionBar button {
+      padding: 5px 12px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background: #222;
+      color: #ccc;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #gallerySelectionBar button:hover {
+      background: #333;
+      color: #eee;
+    }
+    #gallerySelectionBar .sel-del {
+      background: rgba(220, 38, 38, 0.7);
+      color: #fff;
+      border-color: rgba(239, 68, 68, 0.8);
+    }
+    #gallerySelectionBar .sel-del:hover {
+      background: rgba(239, 68, 68, 0.85);
+      color: #fff;
     }
     #galleryImageOverlay {
       display: none;
@@ -435,20 +536,33 @@
       background: rgba(60,60,60,0.9);
       color: #fff;
     }
+    body:has(#galleryImageOverlay.is-visible) {
+      overflow: hidden;
+    }
+    body:has(#galleryImageOverlay.is-visible) #fullscreenBtn {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="top">
-      <button id="backBtn" type="button" aria-label="Back to app" title="Back to app">←</button>
+      <button id="backBtn" type="button" aria-label="Back to app" title="Back to app"><svg viewBox="4 5 15 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="11" x2="5" y2="11"/><polyline points="10,6 5,11 10,16"/></svg></button>
       <div class="lib-tabs">
         <button type="button" class="lib-tab active" id="tabSaved" aria-pressed="true">Saved projects</button>
         <button type="button" class="lib-tab" id="tabGallery" aria-pressed="false">Gallery</button>
       </div>
     </div>
-    <div class="hint" id="libraryHint">Projects are stored in this browser only.</div>
     <div id="list"></div>
     <div id="galleryGrid" style="display:none;"></div>
+    <div class="hint" id="libraryHint">Projects are stored in this browser only.</div>
+  </div>
+  <div id="gallerySelectionBar" aria-hidden="true">
+    <span class="sel-count" id="gallerySelCount">0 selected</span>
+    <button type="button" id="gallerySelAll">Select all</button>
+    <button type="button" id="gallerySelDownload">Download</button>
+    <button type="button" class="sel-del" id="gallerySelDelete">Delete</button>
+    <button type="button" id="gallerySelCancel">Cancel</button>
   </div>
   <div id="galleryImageOverlay" aria-hidden="true">
     <button type="button" class="gallery-fs-overlay-close" aria-label="Close image view"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg></button>
@@ -470,12 +584,19 @@
       return window;
     }
 
+    function notifyGalleryImageView(open) {
+      if (window !== window.top) {
+        try { window.parent.postMessage({ type: "hypo:galleryImageView", open }, "*"); } catch (_) {}
+      }
+    }
+
     function closeGalleryImageViewOnly() {
       const overlay = document.getElementById("galleryImageOverlay");
       if (!overlay) return;
       overlay.classList.remove("is-visible");
       overlay.classList.remove("site-fullscreen");
       overlay.setAttribute("aria-hidden", "true");
+      notifyGalleryImageView(false);
     }
 
     function syncGalleryImageOverlayMode() {
@@ -508,6 +629,7 @@
       syncGalleryImageOverlayMode();
       overlay.classList.add("is-visible");
       overlay.setAttribute("aria-hidden", "false");
+      notifyGalleryImageView(true);
       requestAnimationFrame(syncGalleryImageOverlayMode);
     }
 
@@ -523,6 +645,7 @@
               ov.classList.remove("is-visible");
               ov.classList.remove("site-fullscreen");
               ov.setAttribute("aria-hidden", "true");
+              notifyGalleryImageView(false);
             }
           } else {
             syncGalleryImageOverlayMode();
@@ -854,8 +977,86 @@
 
     let viewMode = "saved";
 
+    const ICON_CHECK = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,6.5 4.8,9.5 10,3"/></svg>`;
+    const gallerySelection = new Set();
+    const galleryItemsById = new Map();
+
+    function clearGallerySelection() {
+      gallerySelection.clear();
+      galleryItemsById.forEach(({ checkbox }) => {
+        if (checkbox) {
+          checkbox.classList.remove("is-selected");
+          checkbox.setAttribute("aria-pressed", "false");
+        }
+      });
+      updateGallerySelectionBar();
+    }
+
+    function toggleGallerySelection(photoId) {
+      const info = galleryItemsById.get(photoId);
+      if (!info) return;
+      if (gallerySelection.has(photoId)) {
+        gallerySelection.delete(photoId);
+        info.checkbox.classList.remove("is-selected");
+        info.checkbox.setAttribute("aria-pressed", "false");
+      } else {
+        gallerySelection.add(photoId);
+        info.checkbox.classList.add("is-selected");
+        info.checkbox.setAttribute("aria-pressed", "true");
+      }
+      updateGallerySelectionBar();
+    }
+
+    function updateGallerySelectionBar() {
+      const bar = document.getElementById("gallerySelectionBar");
+      const count = document.getElementById("gallerySelCount");
+      if (!bar) return;
+      const n = gallerySelection.size;
+      if (count) count.textContent = `${n} selected`;
+      if (n > 0) {
+        bar.classList.add("is-visible");
+        bar.setAttribute("aria-hidden", "false");
+      } else {
+        bar.classList.remove("is-visible");
+        bar.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    function selectAllGalleryPhotos() {
+      galleryItemsById.forEach(({ checkbox }, id) => {
+        gallerySelection.add(id);
+        if (checkbox) {
+          checkbox.classList.add("is-selected");
+          checkbox.setAttribute("aria-pressed", "true");
+        }
+      });
+      updateGallerySelectionBar();
+    }
+
+    function downloadSelectedGalleryPhotos() {
+      for (const id of gallerySelection) {
+        const info = galleryItemsById.get(id);
+        if (info) downloadGalleryImage(info.photo.image, info.photo.id);
+      }
+    }
+
+    async function deleteSelectedGalleryPhotos() {
+      const ids = [...gallerySelection];
+      for (const id of ids) {
+        const info = galleryItemsById.get(id);
+        if (!info) continue;
+        info.wrap.remove();
+        await deleteGalleryPhoto(info.entry && info.entry.id, info.photo.id, info.standalone, false);
+      }
+      clearGallerySelection();
+      renderGalleryGrid();
+    }
+
     async function renderGalleryGrid() {
       const grid = document.getElementById("galleryGrid");
+      gallerySelection.clear();
+      galleryItemsById.clear();
+      updateGallerySelectionBar();
       const lib = getLibrary();
       const items = [];
       for (const entry of lib) {
@@ -872,7 +1073,7 @@
       items.sort((a, b) => new Date(b.photo.createdAt) - new Date(a.photo.createdAt));
       grid.innerHTML = "";
       if (items.length === 0) {
-        grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No photos yet. Use the camera button to snap the current shape.</div>';
+        grid.innerHTML = '<div class="empty-message">No photos yet, use the camera icon to snap the current canvas.</div>';
         return;
       }
       for (const { entry, photo, standalone } of items) {
@@ -933,7 +1134,7 @@
             return;
           }
           if (grid && !grid.querySelector(".gallery-item")) {
-            grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No photos yet. Use the camera button to snap the current shape.</div>';
+            grid.innerHTML = '<div class="empty-message">No photos yet, use the camera icon to snap the current canvas.</div>';
           }
         });
 
@@ -966,6 +1167,17 @@
           openGalleryImageSiteFullscreen(photo.image);
         });
 
+        const selectBox = document.createElement("button");
+        selectBox.type = "button";
+        selectBox.className = "gallery-item-select";
+        selectBox.setAttribute("aria-label", "Select photo");
+        selectBox.setAttribute("aria-pressed", "false");
+        selectBox.innerHTML = ICON_CHECK;
+        selectBox.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleGallerySelection(photo.id);
+        });
+
         const img = document.createElement("img");
         img.className = "gallery-item-img";
         img.src = photo.image;
@@ -975,7 +1187,10 @@
         wrap.appendChild(img);
         wrap.appendChild(menuWrap);
         wrap.appendChild(fsBtn);
+        wrap.appendChild(selectBox);
         grid.appendChild(wrap);
+
+        galleryItemsById.set(photo.id, { entry, photo, standalone, wrap, checkbox: selectBox });
       }
     }
 
@@ -983,7 +1198,7 @@
       const list = document.getElementById("list");
       const lib = getLibrary();
       if (lib.length === 0) {
-        list.innerHTML = '<div class="empty">No saved projects yet.</div>';
+        list.innerHTML = '<div class="empty-message">Saved projects will appear here</div>';
         return;
       }
       list.innerHTML = "";
@@ -1101,6 +1316,7 @@
       document.getElementById("tabGallery").classList.remove("active");
       document.getElementById("list").style.display = "";
       document.getElementById("galleryGrid").style.display = "none";
+      clearGallerySelection();
       const hint = document.getElementById("libraryHint");
       if (hint) hint.style.display = "";
       renderSavedList();
@@ -1114,6 +1330,21 @@
       const hint = document.getElementById("libraryHint");
       if (hint) hint.style.display = "none";
       renderGalleryGrid();
+    });
+
+    document.getElementById("gallerySelAll").addEventListener("click", () => {
+      selectAllGalleryPhotos();
+    });
+    document.getElementById("gallerySelDownload").addEventListener("click", () => {
+      downloadSelectedGalleryPhotos();
+    });
+    document.getElementById("gallerySelDelete").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
+      await deleteSelectedGalleryPhotos();
+      e.currentTarget.disabled = false;
+    });
+    document.getElementById("gallerySelCancel").addEventListener("click", () => {
+      clearGallerySelection();
     });
 
     document.getElementById("backBtn").addEventListener("click", () => {

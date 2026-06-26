@@ -1722,6 +1722,8 @@ function setup() {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => console.warn("Fullscreen:", err));
       }
+    } else if (e.data && e.data.type === "hypo:galleryImageView") {
+      if (libraryOverlayFsBtn) libraryOverlayFsBtn.style.display = e.data.open ? "none" : "";
     } else if (e.data && e.data.type === "hypo:open" && e.data.hash) {
       if (libraryOverlay) {
         libraryOverlay.classList.remove("visible");
