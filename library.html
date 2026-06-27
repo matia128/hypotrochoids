@@ -570,6 +570,7 @@
   </div>
   <button id="fullscreenBtn" title="Toggle fullscreen" tabindex="-1"></button>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     const STORAGE_KEY = "hypo_library";
     const STANDALONE_GALLERY_KEY = "hypo_gallery";
@@ -816,17 +817,45 @@
       return false;
     }
 
+    function galleryImageExt(dataUrl) {
+      if (dataUrl.startsWith("data:image/jpeg")) return "jpg";
+      if (dataUrl.startsWith("data:image/webp")) return "webp";
+      return "png";
+    }
+
     function downloadGalleryImage(dataUrl, photoId) {
       const a = document.createElement("a");
       a.href = dataUrl;
-      let ext = "png";
-      if (dataUrl.startsWith("data:image/jpeg")) ext = "jpg";
-      else if (dataUrl.startsWith("data:image/webp")) ext = "webp";
-      a.download = `hypo-gallery-${photoId}.${ext}`;
+      a.download = `hypo-gallery-${photoId}.${galleryImageExt(dataUrl)}`;
       a.rel = "noopener";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+    }
+
+    async function downloadGalleryImagesZip(items) {
+      if (!window.JSZip) throw new Error("JSZip not loaded");
+      const zip = new JSZip();
+      for (const info of items) {
+        const dataUrl = info.photo.image;
+        const comma = dataUrl.indexOf(",");
+        if (comma === -1) continue;
+        zip.file(
+          `hypo-gallery-${info.photo.id}.${galleryImageExt(dataUrl)}`,
+          dataUrl.slice(comma + 1),
+          { base64: true }
+        );
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `hypo-gallery-${items.length}-photos.zip`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     async function deleteGalleryPhoto(entryId, photoId, standalone = false, rerender = true) {
@@ -1033,10 +1062,31 @@
       updateGallerySelectionBar();
     }
 
-    function downloadSelectedGalleryPhotos() {
-      for (const id of gallerySelection) {
-        const info = galleryItemsById.get(id);
-        if (info) downloadGalleryImage(info.photo.image, info.photo.id);
+    async function downloadSelectedGalleryPhotos() {
+      const items = [...gallerySelection]
+        .map((id) => galleryItemsById.get(id))
+        .filter(Boolean);
+      if (items.length === 0) return;
+      if (items.length === 1) {
+        downloadGalleryImage(items[0].photo.image, items[0].photo.id);
+        return;
+      }
+      const btn = document.getElementById("gallerySelDownload");
+      const prevText = btn ? btn.textContent : "";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Preparing...";
+      }
+      try {
+        await downloadGalleryImagesZip(items);
+      } catch (err) {
+        console.warn("Could not download gallery zip:", err);
+        alert("Could not prepare download. Try fewer photos or download individually.");
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = prevText;
+        }
       }
     }
 
